@@ -90,6 +90,14 @@ namespace SpectraOverdrive
         public float variationPhase;
         public int variationSeed;
         [Range(-1, 3)] public int variationMacroIndex = -1;
+        [Header("Cue layer and deterministic arbitration")]
+        [Range(-1, 15)] public int layerIndex = -1;
+        public SpectraCueArbitrationMode arbitrationMode;
+        [Range(-1, 15)] public int arbitrationGroup = -1;
+        public SpectraModulationTimeBase arbitrationTimeBase = SpectraModulationTimeBase.Bars;
+        [Min(0.0001f)] public float arbitrationCycleLength = 1f;
+        public float arbitrationPhase;
+        public int arbitrationSeed;
         public int priority;
         public Color color = Color.white;
         [Range(0f, 2f)] public float intensity = 1f;

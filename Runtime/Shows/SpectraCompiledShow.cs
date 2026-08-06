@@ -59,6 +59,15 @@ namespace SpectraOverdrive
         public Color[] performanceMacroSnapshotColors = new Color[0];
         public Vector4[] performanceMacroSnapshotValues = new Vector4[0];
         public float[] performanceMacroSnapshotTransitionSeconds = new float[0];
+        public string[] cueLayerNames = new string[0];
+        public Color[] cueLayerColors = new Color[0];
+        public bool[] cueLayerDefaultEnabled = new bool[0];
+        public bool[] cueLayerPcEnabled = new bool[0];
+        public bool[] cueLayerQuestEnabled = new bool[0];
+        public bool[] cueLayerIosEnabled = new bool[0];
+        public bool[] cueLayerAndroidEnabled = new bool[0];
+        public int[] cueLayerPriorityBiases = new int[0];
+        public int[] cueLayerMaximumActiveCues = new int[0];
         public int[] runtimeGroupIds = new int[0];
         public string[] groupStableIds = new string[0];
         public int[] groupSelections = new int[0];
@@ -111,6 +120,11 @@ namespace SpectraOverdrive
         public int[] cueVariationTimeBases = new int[0];
         public int[] cueVariationSeeds = new int[0];
         public int[] cueVariationMacroIndices = new int[0];
+        public int[] cueLayerIndices = new int[0];
+        public int[] cueArbitrationModes = new int[0];
+        public int[] cueArbitrationGroups = new int[0];
+        public int[] cueArbitrationTimeBases = new int[0];
+        public int[] cueArbitrationSeeds = new int[0];
         public bool[] cueConditionInverts = new bool[0];
         public bool[] cueGateInverts = new bool[0];
         public bool[] cueEventOnce = new bool[0];
@@ -138,6 +152,8 @@ namespace SpectraOverdrive
         public float[] cueConditionThresholds = new float[0];
         public float[] cueVariationCycleLengths = new float[0];
         public float[] cueVariationPhases = new float[0];
+        public float[] cueArbitrationCycleLengths = new float[0];
+        public float[] cueArbitrationPhases = new float[0];
         public Color[] cueColors = new Color[0];
         public Vector4[] cueValues = new Vector4[0];
         public Vector4[] cueMovementParameters = new Vector4[0];
@@ -219,6 +235,11 @@ namespace SpectraOverdrive
                 && cueVariationTimeBases != null && cueVariationTimeBases.Length == count
                 && cueVariationSeeds != null && cueVariationSeeds.Length == count
                 && cueVariationMacroIndices != null && cueVariationMacroIndices.Length == count
+                && cueLayerIndices != null && cueLayerIndices.Length == count
+                && cueArbitrationModes != null && cueArbitrationModes.Length == count
+                && cueArbitrationGroups != null && cueArbitrationGroups.Length == count
+                && cueArbitrationTimeBases != null && cueArbitrationTimeBases.Length == count
+                && cueArbitrationSeeds != null && cueArbitrationSeeds.Length == count
                 && cueConditionInverts != null && cueConditionInverts.Length == count
                 && cueGateInverts != null && cueGateInverts.Length == count
                 && cueEventOnce != null && cueEventOnce.Length == count
@@ -245,6 +266,8 @@ namespace SpectraOverdrive
                 && cueConditionThresholds != null && cueConditionThresholds.Length == count
                 && cueVariationCycleLengths != null && cueVariationCycleLengths.Length == count
                 && cueVariationPhases != null && cueVariationPhases.Length == count
+                && cueArbitrationCycleLengths != null && cueArbitrationCycleLengths.Length == count
+                && cueArbitrationPhases != null && cueArbitrationPhases.Length == count
                 && cueColors != null && cueColors.Length == count
                 && cueValues != null && cueValues.Length == count
                 && cueMovementParameters != null && cueMovementParameters.Length == count
@@ -255,6 +278,7 @@ namespace SpectraOverdrive
                 && HasConsistentPalettes()
                 && HasConsistentPerformanceMacros()
                 && HasConsistentPerformanceMacroSnapshots()
+                && HasConsistentCueLayers()
                 && HasConsistentAutomation()
                 && HasConsistentGroups()
                 && HasConsistentMarkers()
@@ -321,6 +345,21 @@ namespace SpectraOverdrive
                     && performanceMacroSnapshotValues.Length == count
                 && performanceMacroSnapshotTransitionSeconds != null
                     && performanceMacroSnapshotTransitionSeconds.Length == count;
+        }
+
+        public bool HasConsistentCueLayers()
+        {
+            int count = cueLayerNames == null ? 0 : cueLayerNames.Length;
+            return count <= 16
+                && cueLayerColors != null && cueLayerColors.Length == count
+                && cueLayerDefaultEnabled != null && cueLayerDefaultEnabled.Length == count
+                && cueLayerPcEnabled != null && cueLayerPcEnabled.Length == count
+                && cueLayerQuestEnabled != null && cueLayerQuestEnabled.Length == count
+                && cueLayerIosEnabled != null && cueLayerIosEnabled.Length == count
+                && cueLayerAndroidEnabled != null && cueLayerAndroidEnabled.Length == count
+                && cueLayerPriorityBiases != null && cueLayerPriorityBiases.Length == count
+                && cueLayerMaximumActiveCues != null
+                && cueLayerMaximumActiveCues.Length == count;
         }
 
         public bool HasConsistentLoops()

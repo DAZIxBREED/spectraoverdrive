@@ -20,7 +20,7 @@ namespace SpectraOverdrive.Editor
             show.artist = "SpectraOverdrive";
             show.songName = "Neon Drop";
             show.author = "DAZIxBREED";
-            show.authorNotes = "Advanced 1.4 synchronized cross-platform demonstration with deterministic cue conditions, synchronized variation groups, macro snapshots, rhythm gates, dynamic color palettes, flattened automation, procedural modulation, synchronized performance macros, ordered scene stacks, quantized hot cues, fixture capability contracts, optics, AudioLink modulation, events, safety fallbacks, and runtime signatures. Attach runtime group IDs to matching scene groups.";
+            show.authorNotes = "Advanced 1.5 synchronized cross-platform demonstration with operator cue layers, deterministic arbitration, cue conditions, synchronized variation groups, macro snapshots, rhythm gates, dynamic color palettes, flattened automation, procedural modulation, synchronized performance macros, ordered scene stacks, quantized hot cues, fixture capability contracts, optics, AudioLink modulation, events, safety fallbacks, and runtime signatures. Attach runtime group IDs to matching scene groups.";
             show.beatGrid = new SpectraBeatGrid { bpm = 174f, beatsPerBar = 4, firstDownbeatSeconds = 0f };
             show.durationSeconds = (float)show.beatGrid.BeatToSeconds(80d * 4d);
             show.platformPolicies = new[]
@@ -73,6 +73,7 @@ namespace SpectraOverdrive.Editor
                 Macro("Audio Drive", "Controls the base of AudioLink-reactive intensity cues.", 1f, new Color(0.35f, 1f, 0.4f))
             };
             SpectraGenerativeAuthoring.EnsureStarterSnapshots(show);
+            SpectraLayerArbitrationAuthoring.EnsureStarterLayers(show);
 
             show.fixtureGroups = new[]
             {
@@ -188,6 +189,31 @@ namespace SpectraOverdrive.Editor
             show.tracks[6].cues[2].conditionCycleLength = 0.5f;
             SpectraGenerativeAuthoring.ApplyMacroCondition(show.tracks[7].cues[1], 2, 0.45f, true);
 
+            // Schema-v8 cue layers keep live operator mutes/solos and per-layer
+            // admission caps synchronized without changing the show clock.
+            AssignTrackLayer(show.tracks[0], 0);
+            AssignTrackLayer(show.tracks[3], 0);
+            AssignTrackLayer(show.tracks[4], 0);
+            AssignTrackLayer(show.tracks[1], 1);
+            AssignTrackLayer(show.tracks[2], 1);
+            AssignTrackLayer(show.tracks[5], 2);
+            AssignTrackLayer(show.tracks[6], 2);
+            AssignTrackLayer(show.tracks[7], 2);
+            AssignTrackLayer(show.tracks[8], 2);
+            AssignTrackLayer(show.tracks[9], 3);
+
+            SpectraCueBlock secondDropColorA = show.tracks[0].cues[6];
+            SpectraCueBlock secondDropColorB = ColorCue(
+                "Second Drop Heat Arbitration", 57, 16,
+                new Color(1f, 0.12f, 0.02f));
+            secondDropColorB.layerIndex = 2;
+            secondDropColorB.priority = secondDropColorA.priority + 1;
+            SpectraLayerArbitrationAuthoring.ApplyDeterministicCycleArbitration(
+                secondDropColorA, 2, 2f, 15057);
+            SpectraLayerArbitrationAuthoring.ApplyDeterministicCycleArbitration(
+                secondDropColorB, 2, 2f, 15057);
+            AppendCue(show.tracks[0], secondDropColorB);
+
             show.markers = new[]
             {
                 Marker("Intro", 1, SpectraMarkerKind.Intro),
@@ -260,6 +286,13 @@ namespace SpectraOverdrive.Editor
                 cue.performanceMacroMinimum = minimum;
                 cue.performanceMacroMaximum = maximum;
             }
+        }
+
+        private static void AssignTrackLayer(SpectraTimelineTrack track, int layerIndex)
+        {
+            if (track == null || track.cues == null) return;
+            for (int i = 0; i < track.cues.Length; i++)
+                if (track.cues[i] != null) track.cues[i].layerIndex = layerIndex;
         }
 
 

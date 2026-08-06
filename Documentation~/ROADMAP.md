@@ -156,3 +156,9 @@
 - expanded compiler, signatures, JSON migration, reporting, self-tests, and
   four-platform device matrix
 - schema-v1 through schema-v6 migration
+
+## 1.5 — Operator cue layers and deterministic arbitration
+
+Delivered in 1.5.0: synchronized layer masks, platform-aware layer policy,
+priority bias, per-layer admission limits, deterministic arbitration groups,
+a layer controller, timeline authoring, migration, validation, and demo content.

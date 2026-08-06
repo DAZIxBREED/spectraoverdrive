@@ -18,7 +18,7 @@ namespace SpectraOverdrive
     [CreateAssetMenu(fileName = "SpectraShow", menuName = "SpectraOverdrive/Show Asset")]
     public class SpectraShowAsset : ScriptableObject
     {
-        public const int CurrentSchemaVersion = 7;
+        public const int CurrentSchemaVersion = 8;
         public int schemaVersion = CurrentSchemaVersion;
         public string showId;
         public string showName = "New SpectraOverdrive Show";
@@ -44,6 +44,8 @@ namespace SpectraOverdrive
         public SpectraPerformanceMacro[] performanceMacros = new SpectraPerformanceMacro[0];
         [Tooltip("Up to sixteen synchronized four-macro snapshots for live look recall.")]
         public SpectraPerformanceMacroSnapshot[] performanceMacroSnapshots = new SpectraPerformanceMacroSnapshot[0];
+        [Tooltip("Up to sixteen operator-controllable cue layers with platform and admission policies.")]
+        public SpectraCueLayer[] cueLayers = new SpectraCueLayer[0];
         public SpectraPlatformPolicy[] platformPolicies = new SpectraPlatformPolicy[0];
         public SpectraAccessibilityMetadata accessibility = new SpectraAccessibilityMetadata();
 
@@ -144,6 +146,8 @@ namespace SpectraOverdrive
                     ValidatePaletteBinding(cue, ti, ci, issues);
                     ValidateCueCondition(cue, ti, ci, issues);
                     ValidateVariation(cue, ti, ci, issues);
+                    ValidateCueLayerBinding(cue, ti, ci, issues);
+                    ValidateCueArbitration(cue, ti, ci, issues);
                     if (cue.performanceMacroIndex < -1 || cue.performanceMacroIndex > 3)
                         issues.Add(new SpectraValidationIssue(true, CuePath(ti, ci) + ".performanceMacroIndex", "Performance macro index must be -1 or 0 through 3."));
                     if (cue.performanceMacroIndex >= 0
@@ -181,7 +185,9 @@ namespace SpectraOverdrive
             ValidateColorPalettes(issues);
             ValidatePerformanceMacros(issues);
             ValidatePerformanceMacroSnapshots(issues);
+            ValidateCueLayers(issues);
             ValidateVariationGroups(issues);
+            ValidateArbitrationGroups(issues);
             ValidatePlatformPolicies(issues);
             return issues.ToArray();
         }
@@ -410,6 +416,119 @@ namespace SpectraOverdrive
             }
         }
 
+        private void ValidateCueLayerBinding(
+            SpectraCueBlock cue,
+            int trackIndex,
+            int cueIndex,
+            List<SpectraValidationIssue> issues)
+        {
+            if (cue.layerIndex < -1 || cue.layerIndex > 15)
+                issues.Add(new SpectraValidationIssue(true,
+                    CuePath(trackIndex, cueIndex) + ".layerIndex",
+                    "Cue layer index must be -1 or 0 through 15."));
+            if (cue.layerIndex >= 0
+                && (cueLayers == null || cue.layerIndex >= cueLayers.Length
+                    || cueLayers[cue.layerIndex] == null))
+                issues.Add(new SpectraValidationIssue(true,
+                    CuePath(trackIndex, cueIndex) + ".layerIndex",
+                    "Cue references a missing cue layer."));
+        }
+
+        private static void ValidateCueArbitration(
+            SpectraCueBlock cue,
+            int trackIndex,
+            int cueIndex,
+            List<SpectraValidationIssue> issues)
+        {
+            if (cue.arbitrationMode == SpectraCueArbitrationMode.Disabled) return;
+            string path = CuePath(trackIndex, cueIndex) + ".arbitration";
+            if (cue.arbitrationGroup < 0 || cue.arbitrationGroup > 15)
+                issues.Add(new SpectraValidationIssue(true, path + ".group",
+                    "Arbitration group must be 0 through 15."));
+            if (cue.arbitrationMode == SpectraCueArbitrationMode.DeterministicCycle
+                && cue.arbitrationCycleLength <= 0.0001f)
+                issues.Add(new SpectraValidationIssue(true, path + ".cycleLength",
+                    "Deterministic-cycle arbitration requires a positive cycle length."));
+            if (cue.arbitrationMode == SpectraCueArbitrationMode.DeterministicCycle
+                && cue.arbitrationTimeBase == SpectraModulationTimeBase.Seconds
+                && cue.arbitrationCycleLength < 0.05f)
+                issues.Add(new SpectraValidationIssue(false, path + ".cycleLength",
+                    "Sub-50 ms arbitration cycles can cause excessive mobile cue churn."));
+        }
+
+        private void ValidateCueLayers(List<SpectraValidationIssue> issues)
+        {
+            if (cueLayers == null) return;
+            if (cueLayers.Length > 16)
+                issues.Add(new SpectraValidationIssue(true, "cueLayers",
+                    "Cross-platform runtime supports a maximum of sixteen cue layers."));
+            for (int i = 0; i < cueLayers.Length; i++)
+            {
+                SpectraCueLayer layer = cueLayers[i];
+                if (layer == null)
+                {
+                    issues.Add(new SpectraValidationIssue(true, "cueLayers[" + i + "]",
+                        "Cue layer is null."));
+                    continue;
+                }
+                if (string.IsNullOrWhiteSpace(layer.name))
+                    issues.Add(new SpectraValidationIssue(true,
+                        "cueLayers[" + i + "].name", "Cue layer name is required."));
+                if (!layer.pcEnabled && !layer.questEnabled
+                    && !layer.iosEnabled && !layer.androidEnabled)
+                    issues.Add(new SpectraValidationIssue(false,
+                        "cueLayers[" + i + "]",
+                        "Cue layer is disabled on every platform."));
+                if (layer.maximumActiveCues > 0 && layer.maximumActiveCues < 2)
+                    issues.Add(new SpectraValidationIssue(false,
+                        "cueLayers[" + i + "].maximumActiveCues",
+                        "A one-cue layer cap is valid, but arbitration may communicate intent more clearly."));
+            }
+        }
+
+        private void ValidateArbitrationGroups(List<SpectraValidationIssue> issues)
+        {
+            SpectraCueBlock[] first = new SpectraCueBlock[16];
+            int[] counts = new int[16];
+            if (tracks == null) return;
+            for (int ti = 0; ti < tracks.Length; ti++)
+            {
+                SpectraTimelineTrack track = tracks[ti];
+                if (track == null || track.cues == null) continue;
+                for (int ci = 0; ci < track.cues.Length; ci++)
+                {
+                    SpectraCueBlock cue = track.cues[ci];
+                    if (cue == null || !cue.enabled
+                        || cue.arbitrationMode == SpectraCueArbitrationMode.Disabled
+                        || cue.arbitrationGroup < 0 || cue.arbitrationGroup > 15) continue;
+                    counts[cue.arbitrationGroup]++;
+                    SpectraCueBlock reference = first[cue.arbitrationGroup];
+                    if (reference == null)
+                    {
+                        first[cue.arbitrationGroup] = cue;
+                        continue;
+                    }
+                    bool consistent = reference.arbitrationMode == cue.arbitrationMode
+                        && reference.arbitrationTimeBase == cue.arbitrationTimeBase
+                        && Mathf.Abs(reference.arbitrationCycleLength
+                            - cue.arbitrationCycleLength) < 0.0001f
+                        && Mathf.Abs(reference.arbitrationPhase
+                            - cue.arbitrationPhase) < 0.0001f
+                        && reference.arbitrationSeed == cue.arbitrationSeed;
+                    if (!consistent)
+                        issues.Add(new SpectraValidationIssue(true,
+                            CuePath(ti, ci) + ".arbitration",
+                            "All cues in arbitration group " + cue.arbitrationGroup
+                            + " must share mode, clock, phase, and seed."));
+                }
+            }
+            for (int group = 0; group < counts.Length; group++)
+                if (counts[group] == 1)
+                    issues.Add(new SpectraValidationIssue(false,
+                        "arbitrationGroups[" + group + "]",
+                        "Arbitration group contains only one cue and has no competing candidate."));
+        }
+
         private void ValidateColorPalettes(List<SpectraValidationIssue> issues)
         {
             if (colorPalettes == null) return;
@@ -559,6 +678,16 @@ namespace SpectraOverdrive
                             cue.variationCycleLength = 1f;
                             cue.variationMacroIndex = -1;
                         }
+                        if (previousVersion < 8)
+                        {
+                            cue.layerIndex = -1;
+                            cue.arbitrationMode = SpectraCueArbitrationMode.Disabled;
+                            cue.arbitrationGroup = -1;
+                            cue.arbitrationTimeBase = SpectraModulationTimeBase.Bars;
+                            cue.arbitrationCycleLength = 1f;
+                            cue.arbitrationPhase = 0f;
+                            cue.arbitrationSeed = 0;
+                        }
                     }
                 }
             if (platformPolicies == null || platformPolicies.Length == 0)
@@ -602,6 +731,8 @@ namespace SpectraOverdrive
                 colorPalettes = new SpectraColorPalette[0];
             if (previousVersion < 7 && performanceMacroSnapshots == null)
                 performanceMacroSnapshots = new SpectraPerformanceMacroSnapshot[0];
+            if (previousVersion < 8 && cueLayers == null)
+                cueLayers = new SpectraCueLayer[0];
         }
     }
 }

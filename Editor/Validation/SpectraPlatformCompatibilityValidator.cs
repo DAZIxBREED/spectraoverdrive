@@ -24,6 +24,9 @@ namespace SpectraOverdrive.Editor
         public int paletteBindingCount;
         public int conditionCueCount;
         public int variationCueCount;
+        public int cueLayerBindingCount;
+        public int arbitrationCueCount;
+        public int platformDisabledLayerCueCount;
         public readonly List<string> warnings = new List<string>();
 
         public bool FitsBudget { get { return maximumConcurrentCues <= cueBudget; } }
@@ -113,6 +116,25 @@ namespace SpectraOverdrive.Editor
                                 result.warnings.Add(CueName(track, cue)
                                     + " uses sub-80ms variation switching; mobile cadence will intentionally limit it.");
                         }
+                        bool usesArbitration = cue.arbitrationMode
+                            != SpectraCueArbitrationMode.Disabled;
+                        if (usesArbitration) result.arbitrationCueCount++;
+                        if (cue.layerIndex >= 0)
+                        {
+                            result.cueLayerBindingCount++;
+                            if (!IsLayerAllowed(show, cue.layerIndex, platform))
+                            {
+                                result.platformDisabledLayerCueCount++;
+                                result.disabledCues++;
+                                continue;
+                            }
+                        }
+                        if (usesArbitration && IsMobile(platform)
+                            && cue.arbitrationMode == SpectraCueArbitrationMode.DeterministicCycle
+                            && cue.arbitrationTimeBase == SpectraModulationTimeBase.Seconds
+                            && cue.arbitrationCycleLength < 0.08f)
+                            result.warnings.Add(CueName(track, cue)
+                                + " uses sub-80ms arbitration switching; mobile cadence will intentionally limit it.");
                         if (IsMobile(platform) && keyCount > 8)
                             result.warnings.Add(CueName(track, cue) + " uses " + keyCount
                                 + " automation keys; mobile evaluation is supported but should be device-tested.");
@@ -207,6 +229,9 @@ namespace SpectraOverdrive.Editor
                     + result.paletteBindingCount + " palette bindings, "
                     + result.conditionCueCount + " conditioned cues, "
                     + result.variationCueCount + " variation cues, "
+                    + result.cueLayerBindingCount + " layer bindings, "
+                    + result.arbitrationCueCount + " arbitrated cues, "
+                    + result.platformDisabledLayerCueCount + " layer-disabled, "
                     + result.disabledCues + " disabled.");
                 for (int warning = 0; warning < result.warnings.Count; warning++)
                     builder.AppendLine("  - " + result.warnings[warning]);
@@ -226,6 +251,22 @@ namespace SpectraOverdrive.Editor
             string report = Format(AnalyzeAll(show));
             Debug.Log("[SpectraOverdrive] Cross-platform report for " + show.showName + "\n" + report, show);
             EditorUtility.DisplayDialog("SpectraOverdrive Cross-Platform Report", report, "OK");
+        }
+
+
+        private static bool IsLayerAllowed(
+            SpectraShowAsset show,
+            int layerIndex,
+            SpectraPlatformKind platform)
+        {
+            if (layerIndex < 0) return true;
+            if (show.cueLayers == null || layerIndex >= show.cueLayers.Length) return false;
+            SpectraCueLayer layer = show.cueLayers[layerIndex];
+            if (layer == null) return false;
+            if (platform == SpectraPlatformKind.Quest) return layer.questEnabled;
+            if (platform == SpectraPlatformKind.IOS) return layer.iosEnabled;
+            if (platform == SpectraPlatformKind.Android) return layer.androidEnabled;
+            return layer.pcEnabled;
         }
 
         private static SpectraPlatformFallback Fallback(SpectraCueBlock cue, SpectraPlatformKind platform)

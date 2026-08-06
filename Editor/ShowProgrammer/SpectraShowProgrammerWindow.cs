@@ -432,7 +432,9 @@ namespace SpectraOverdrive.Editor
                         + (cue.gatePattern != SpectraCueGatePattern.Disabled ? "  GATE" : "")
                         + (cue.paletteMode != SpectraPalettePlaybackMode.Disabled ? "  PAL" : "")
                         + (cue.conditionMode != SpectraCueConditionMode.Disabled ? "  COND" : "")
-                        + (cue.variationMode != SpectraVariationSelectionMode.Disabled ? "  VAR" : ""),
+                        + (cue.variationMode != SpectraVariationSelectionMode.Disabled ? "  VAR" : "")
+                        + (cue.layerIndex >= 0 ? "  L" + (cue.layerIndex + 1) : "")
+                        + (cue.arbitrationMode != SpectraCueArbitrationMode.Disabled ? "  ARB" : ""),
                         EditorStyles.miniLabel);
                     if (cue.automationMode != SpectraAutomationMode.Disabled
                         && cue.automationKeys != null)
@@ -741,16 +743,19 @@ namespace SpectraOverdrive.Editor
                 EditorGUILayout.PropertyField(serialized.FindProperty("colorPalettes"), true);
                 EditorGUILayout.PropertyField(serialized.FindProperty("performanceMacros"), true);
                 EditorGUILayout.PropertyField(serialized.FindProperty("performanceMacroSnapshots"), true);
+                EditorGUILayout.PropertyField(serialized.FindProperty("cueLayers"), true);
                 if (((show.colorPalettes == null || show.colorPalettes.Length == 0)
                         || (show.performanceMacros == null || show.performanceMacros.Length == 0)
                         || (show.performanceMacroSnapshots == null
-                            || show.performanceMacroSnapshots.Length == 0))
-                    && GUILayout.Button("Create 1.4 Starter Palettes and Snapshots"))
+                            || show.performanceMacroSnapshots.Length == 0)
+                        || (show.cueLayers == null || show.cueLayers.Length == 0))
+                    && GUILayout.Button("Create 1.5 Starter Palettes, Snapshots, and Layers"))
                 {
                     serialized.ApplyModifiedProperties();
-                    Undo.RecordObject(show, "Create Spectra Starter Palettes");
+                    Undo.RecordObject(show, "Create Spectra starter systems");
                     SpectraRhythmPaletteAuthoring.EnsureStarterPalettes(show);
                     SpectraGenerativeAuthoring.EnsureStarterSnapshots(show);
+                    SpectraLayerArbitrationAuthoring.EnsureStarterLayers(show);
                     Dirty();
                 }
                 EditorGUILayout.PropertyField(serialized.FindProperty("platformPolicies"), true);
@@ -926,6 +931,42 @@ namespace SpectraOverdrive.Editor
             {
                 Undo.RecordObject(show, "Clear Cue Variation");
                 SpectraGenerativeAuthoring.ClearVariation(cue);
+                Dirty();
+            }
+            EditorGUILayout.EndHorizontal();
+            GUILayout.Label("CUE LAYERS / ARBITRATION", EditorStyles.miniBoldLabel);
+            EditorGUILayout.BeginHorizontal();
+            GUI.enabled = show.cueLayers != null && show.cueLayers.Length > 0;
+            if (GUILayout.Button("Layer 1"))
+            {
+                Undo.RecordObject(show, "Assign Cue Layer 1");
+                SpectraLayerArbitrationAuthoring.AssignLayer(cue, 0);
+                Dirty();
+            }
+            if (GUILayout.Button("Layer 2"))
+            {
+                Undo.RecordObject(show, "Assign Cue Layer 2");
+                SpectraLayerArbitrationAuthoring.AssignLayer(cue, 1);
+                Dirty();
+            }
+            GUI.enabled = true;
+            if (GUILayout.Button("Priority Arb"))
+            {
+                Undo.RecordObject(show, "Add Priority Arbitration");
+                SpectraLayerArbitrationAuthoring.ApplyHighestPriorityArbitration(cue, 0);
+                Dirty();
+            }
+            if (GUILayout.Button("Cycle Arb"))
+            {
+                Undo.RecordObject(show, "Add Cycle Arbitration");
+                SpectraLayerArbitrationAuthoring.ApplyDeterministicCycleArbitration(
+                    cue, 0, 1f, cue.randomSeed);
+                Dirty();
+            }
+            if (GUILayout.Button("Clear Arb"))
+            {
+                Undo.RecordObject(show, "Clear Cue Arbitration");
+                SpectraLayerArbitrationAuthoring.ClearArbitration(cue);
                 Dirty();
             }
             EditorGUILayout.EndHorizontal();

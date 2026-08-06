@@ -20,7 +20,7 @@ namespace SpectraOverdrive.Editor
 
         private void OnGUI()
         {
-            EditorGUILayout.LabelField("SpectraOverdrive 1.4 Platform Simulator", EditorStyles.boldLabel);
+            EditorGUILayout.LabelField("SpectraOverdrive 1.5 Platform Simulator", EditorStyles.boldLabel);
             EditorGUILayout.HelpBox(
                 "Evaluates the baked player with the exact PCVR, Quest, iOS, or Android cue, fixture, shader, beam, fallback, capability, and automation path. This is an editor preview; device testing is still required.",
                 MessageType.Info);

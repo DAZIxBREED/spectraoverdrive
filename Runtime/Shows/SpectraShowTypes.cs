@@ -48,6 +48,14 @@ namespace SpectraOverdrive
         AudioBelow
     }
     public enum SpectraVariationSelectionMode { Disabled, Cycle, PingPong, SeededRandom, MacroSelect }
+    public enum SpectraCueArbitrationMode
+    {
+        Disabled,
+        HighestPriority,
+        LatestStart,
+        EarliestStart,
+        DeterministicCycle
+    }
     public enum SpectraTimingMode { Seconds, Musical }
     public enum SpectraFixtureSelection { All, Odd, Even, Alternating, Reverse, CenterOut, SeededRandom }
     public enum SpectraPlatformFallback { Full, Simplified, EmissiveOnly, Disabled }
@@ -236,6 +244,22 @@ namespace SpectraOverdrive
         [Tooltip("Targets for performance macros 1 through 4.")]
         public Vector4 values = Vector4.one;
         [Range(0f, 8f)] public float transitionSeconds = 0.35f;
+    }
+
+    [Serializable]
+    public class SpectraCueLayer
+    {
+        public string name = "Cue Layer";
+        [TextArea] public string description;
+        public Color displayColor = new Color(0.35f, 0.75f, 1f, 1f);
+        public bool defaultEnabled = true;
+        public bool pcEnabled = true;
+        public bool questEnabled = true;
+        public bool iosEnabled = true;
+        public bool androidEnabled = true;
+        [Range(-100, 100)] public int priorityBias;
+        [Tooltip("Zero uses the global platform cue budget. A positive value caps simultaneously admitted cues from this layer.")]
+        [Range(0, 32)] public int maximumActiveCues;
     }
 
     [Serializable]

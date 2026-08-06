@@ -61,6 +61,15 @@ namespace SpectraOverdrive
         public Color[] performanceMacroSnapshotColors = new Color[0];
         public Vector4[] performanceMacroSnapshotValues = new Vector4[0];
         public float[] performanceMacroSnapshotTransitionSeconds = new float[0];
+        public string[] cueLayerNames = new string[0];
+        public Color[] cueLayerColors = new Color[0];
+        public bool[] cueLayerDefaultEnabled = new bool[0];
+        public bool[] cueLayerPcEnabled = new bool[0];
+        public bool[] cueLayerQuestEnabled = new bool[0];
+        public bool[] cueLayerIosEnabled = new bool[0];
+        public bool[] cueLayerAndroidEnabled = new bool[0];
+        public int[] cueLayerPriorityBiases = new int[0];
+        public int[] cueLayerMaximumActiveCues = new int[0];
         public int[] runtimeGroupIds = new int[0];
         public string[] groupStableIds = new string[0];
         public int[] groupSelections = new int[0];
@@ -113,6 +122,11 @@ namespace SpectraOverdrive
         public int[] cueVariationTimeBases = new int[0];
         public int[] cueVariationSeeds = new int[0];
         public int[] cueVariationMacroIndices = new int[0];
+        public int[] cueLayerIndices = new int[0];
+        public int[] cueArbitrationModes = new int[0];
+        public int[] cueArbitrationGroups = new int[0];
+        public int[] cueArbitrationTimeBases = new int[0];
+        public int[] cueArbitrationSeeds = new int[0];
         public bool[] cueConditionInverts = new bool[0];
         public bool[] cueGateInverts = new bool[0];
         public bool[] cueEventOnce = new bool[0];
@@ -140,6 +154,8 @@ namespace SpectraOverdrive
         public float[] cueConditionThresholds = new float[0];
         public float[] cueVariationCycleLengths = new float[0];
         public float[] cueVariationPhases = new float[0];
+        public float[] cueArbitrationCycleLengths = new float[0];
+        public float[] cueArbitrationPhases = new float[0];
         public Color[] cueColors = new Color[0];
         public Vector4[] cueValues = new Vector4[0];
         public Vector4[] cueMovementParameters = new Vector4[0];
@@ -204,6 +220,12 @@ namespace SpectraOverdrive
         [Range(0f, 1f)] public float performanceMacro1 = 1f;
         [Range(0f, 1f)] public float performanceMacro2 = 1f;
         [Range(0f, 1f)] public float performanceMacro3 = 1f;
+        [Tooltip("Bit mask for enabled authored cue layers. Layer-free cues are always eligible.")]
+        public int cueLayerEnabledMask = -1;
+        [Tooltip("When non-zero, only layers present in this mask are admitted.")]
+        public int cueLayerSoloMask;
+        public int arbitrationSuppressedCueCount;
+        public int layerSuppressedCueCount;
 
         private float _playStartedAt;
         private float _playStartedOffset;
@@ -211,6 +233,15 @@ namespace SpectraOverdrive
         private float _resolvedStrobeHz;
         private float _resolvedLaserEnabled;
         private int[] _selectedCueIndices;
+        private int[] _candidateCueIndices;
+        private int[] _selectedLayerCounts;
+        private int[] _arbitrationWinners;
+        private int[] _arbitrationCandidateCounts;
+        private int[] _arbitrationModes;
+        private int[] _arbitrationTimeBases;
+        private int[] _arbitrationSeeds;
+        private float[] _arbitrationCycleLengths;
+        private float[] _arbitrationPhases;
         private bool[] _eventFired;
         private float _lastAppliedTime = -1f;
         private int _evaluationFrame;
@@ -228,6 +259,7 @@ namespace SpectraOverdrive
             EnsureShaderPropertyIds();
             ResolveLocalPlatform();
             ApplyRuntimePlatformBudgets();
+            ResetCueLayerMasksToDefaults();
             if (!externalClock) ResetPerformanceMacrosToDefaults();
             if (externalClock) return;
             if (playOnStart) Play(); else ApplyAtTime(0f);
@@ -395,6 +427,59 @@ namespace SpectraOverdrive
             return Mathf.Clamp(performanceMacroSmoothing[index], 0f, 4f);
         }
 
+        public int GetCueLayerCount()
+        {
+            return HasConsistentCueLayerArrays() ? cueLayerNames.Length : 0;
+        }
+
+        public bool IsCueLayerUsable(int index)
+        {
+            return HasConsistentCueLayerArrays()
+                && index >= 0 && index < cueLayerNames.Length;
+        }
+
+        public string GetCueLayerName(int index)
+        {
+            return IsCueLayerUsable(index) ? cueLayerNames[index] : string.Empty;
+        }
+
+        public Color GetCueLayerColor(int index)
+        {
+            return IsCueLayerUsable(index) ? cueLayerColors[index] : Color.white;
+        }
+
+        public bool IsCueLayerEnabled(int index)
+        {
+            if (!IsCueLayerUsable(index)) return false;
+            int bit = 1 << index;
+            return (cueLayerEnabledMask & bit) != 0
+                && (cueLayerSoloMask == 0 || (cueLayerSoloMask & bit) != 0)
+                && IsCueLayerAllowedOnPlatform(index);
+        }
+
+        public void SetCueLayerMasks(int enabledMask, int soloMask)
+        {
+            int layerCount = GetCueLayerCount();
+            int validMask = layerCount <= 0 ? 0 : (1 << layerCount) - 1;
+            cueLayerEnabledMask = enabledMask & validMask;
+            cueLayerSoloMask = soloMask & validMask;
+        }
+
+        public void ResetCueLayerMasksToDefaults()
+        {
+            if (!HasConsistentCueLayerArrays())
+            {
+                cueLayerEnabledMask = -1;
+                cueLayerSoloMask = 0;
+                return;
+            }
+            int mask = 0;
+            for (int i = 0; i < cueLayerDefaultEnabled.Length; i++)
+                if (cueLayerDefaultEnabled[i]) mask |= 1 << i;
+            cueLayerEnabledMask = mask;
+            cueLayerSoloMask = 0;
+        }
+
         public int GetPerformanceMacroSnapshotCount()
         {
             return HasConsistentPerformanceMacroSnapshotArrays()
@@ -532,6 +617,7 @@ namespace SpectraOverdrive
             _resolvedStrobeHz = 0f;
             _resolvedLaserEnabled = 0f;
             _evaluationFrame++;
+            PrepareArbitrationWinners(time);
             int cueBudget = ResolveMaximumActiveCues();
             int selectedCount = SelectActiveCues(time, cueBudget);
             activeCueCount = selectedCount;
@@ -693,6 +779,11 @@ namespace SpectraOverdrive
                 && cueVariationTimeBases != null && cueVariationTimeBases.Length == count
                 && cueVariationSeeds != null && cueVariationSeeds.Length == count
                 && cueVariationMacroIndices != null && cueVariationMacroIndices.Length == count
+                && cueLayerIndices != null && cueLayerIndices.Length == count
+                && cueArbitrationModes != null && cueArbitrationModes.Length == count
+                && cueArbitrationGroups != null && cueArbitrationGroups.Length == count
+                && cueArbitrationTimeBases != null && cueArbitrationTimeBases.Length == count
+                && cueArbitrationSeeds != null && cueArbitrationSeeds.Length == count
                 && cueConditionInverts != null && cueConditionInverts.Length == count
                 && cueGateInverts != null && cueGateInverts.Length == count
                 && cueEventOnce != null && cueEventOnce.Length == count
@@ -715,6 +806,8 @@ namespace SpectraOverdrive
                 && cueConditionThresholds != null && cueConditionThresholds.Length == count
                 && cueVariationCycleLengths != null && cueVariationCycleLengths.Length == count
                 && cueVariationPhases != null && cueVariationPhases.Length == count
+                && cueArbitrationCycleLengths != null && cueArbitrationCycleLengths.Length == count
+                && cueArbitrationPhases != null && cueArbitrationPhases.Length == count
                 && cueModulationOffsets != null && cueModulationOffsets.Length == count
                 && cueModulationDepths != null && cueModulationDepths.Length == count
                 && cuePerformanceMacroMinimums != null && cuePerformanceMacroMinimums.Length == count
@@ -722,6 +815,7 @@ namespace SpectraOverdrive
                 && HasConsistentPaletteArrays()
                 && HasConsistentPerformanceMacroArrays()
                 && HasConsistentPerformanceMacroSnapshotArrays()
+                && HasConsistentCueLayerArrays()
                 && HasConsistentAutomationArrays()
                 && HasConsistentMarkerArrays()
                 && HasConsistentTempoArrays();
@@ -741,6 +835,21 @@ namespace SpectraOverdrive
                     || offset + length > paletteColors.Length) return false;
             }
             return true;
+        }
+
+        private bool HasConsistentCueLayerArrays()
+        {
+            int count = cueLayerNames == null ? 0 : cueLayerNames.Length;
+            return count <= 16
+                && cueLayerColors != null && cueLayerColors.Length == count
+                && cueLayerDefaultEnabled != null && cueLayerDefaultEnabled.Length == count
+                && cueLayerPcEnabled != null && cueLayerPcEnabled.Length == count
+                && cueLayerQuestEnabled != null && cueLayerQuestEnabled.Length == count
+                && cueLayerIosEnabled != null && cueLayerIosEnabled.Length == count
+                && cueLayerAndroidEnabled != null && cueLayerAndroidEnabled.Length == count
+                && cueLayerPriorityBiases != null && cueLayerPriorityBiases.Length == count
+                && cueLayerMaximumActiveCues != null
+                && cueLayerMaximumActiveCues.Length == count;
         }
 
         private bool HasConsistentPerformanceMacroArrays()
@@ -1491,29 +1600,57 @@ namespace SpectraOverdrive
 
         private int SelectActiveCues(float time, int budget)
         {
+            budget = Mathf.Max(1, budget);
             if (_selectedCueIndices == null || _selectedCueIndices.Length != budget)
                 _selectedCueIndices = new int[budget];
-            int selected = 0;
+            if (_candidateCueIndices == null || _candidateCueIndices.Length != CueCount)
+                _candidateCueIndices = new int[CueCount];
+            if (_selectedLayerCounts == null || _selectedLayerCounts.Length != 16)
+                _selectedLayerCounts = new int[16];
+            for (int layer = 0; layer < _selectedLayerCounts.Length; layer++)
+                _selectedLayerCounts[layer] = 0;
+
+            int candidateCount = 0;
             for (int cue = 0; cue < CueCount; cue++)
             {
                 if (!IsCueActive(cue, time) || !IsCueSupportedOnPlatform(cue)) continue;
-                int insert = selected;
-                for (int i = 0; i < selected; i++)
+                int insert = candidateCount;
+                int priority = ResolveCuePriority(cue);
+                for (int i = 0; i < candidateCount; i++)
                 {
-                    int other = _selectedCueIndices[i];
-                    if (cuePriorities[cue] > cuePriorities[other]
-                        || (cuePriorities[cue] == cuePriorities[other] && cue > other))
+                    int other = _candidateCueIndices[i];
+                    int otherPriority = ResolveCuePriority(other);
+                    if (priority > otherPriority
+                        || (priority == otherPriority && cue > other))
                     {
                         insert = i;
                         break;
                     }
                 }
-                if (insert >= budget) continue;
-                int upper = Mathf.Min(selected, budget - 1);
-                for (int move = upper; move > insert; move--)
-                    _selectedCueIndices[move] = _selectedCueIndices[move - 1];
-                _selectedCueIndices[insert] = cue;
-                if (selected < budget) selected++;
+                for (int move = candidateCount; move > insert; move--)
+                    _candidateCueIndices[move] = _candidateCueIndices[move - 1];
+                _candidateCueIndices[insert] = cue;
+                candidateCount++;
+            }
+
+            int selected = 0;
+            for (int candidate = 0; candidate < candidateCount; candidate++)
+            {
+                int cue = _candidateCueIndices[candidate];
+                int layerIndex = cueLayerIndices[cue];
+                if (layerIndex >= 0 && layerIndex < 16)
+                {
+                    int layerLimit = GetCueLayerAdmissionLimit(layerIndex);
+                    if (layerLimit > 0 && _selectedLayerCounts[layerIndex] >= layerLimit)
+                    {
+                        layerSuppressedCueCount++;
+                        continue;
+                    }
+                }
+                if (selected >= budget) continue;
+                _selectedCueIndices[selected++] = cue;
+                if (layerIndex >= 0 && layerIndex < 16)
+                    _selectedLayerCounts[layerIndex]++;
             }
             return selected;
         }
@@ -1528,11 +1665,180 @@ namespace SpectraOverdrive
 
         private bool IsCueActive(int cue, float time)
         {
-            if (time < cueStarts[cue] || time > cueStarts[cue] + cueDurations[cue]) return false;
+            if (!IsCuePreArbitrationActive(cue, time)) return false;
+            SpectraCueArbitrationMode mode =
+                (SpectraCueArbitrationMode)cueArbitrationModes[cue];
+            if (mode == SpectraCueArbitrationMode.Disabled) return true;
+            int group = cueArbitrationGroups[cue];
+            return group >= 0 && group < 16
+                && _arbitrationWinners != null
+                && _arbitrationWinners[group] == cue;
+        }
+
+        private bool IsCuePreArbitrationActive(int cue, float time)
+        {
+            if (!IsCueTimeConditionActive(cue, time)) return false;
+            return IsCueLayerEnabledForCue(cue);
+        }
+
+        private bool IsCueTimeConditionActive(int cue, float time)
+        {
+            if (time < cueStarts[cue] || time > cueStarts[cue] + cueDurations[cue])
+                return false;
             float start = cueStarts[cue];
             if (!EvaluateCueCondition(cue, time, start)) return false;
             if (!EvaluateVariationSelection(cue, time)) return false;
             return EvaluateRhythmGate(cue, time, start) > 0.0001f;
+        }
+
+        private void PrepareArbitrationWinners(float time)
+        {
+            EnsureArbitrationScratchArrays();
+            arbitrationSuppressedCueCount = 0;
+            layerSuppressedCueCount = 0;
+            for (int group = 0; group < 16; group++)
+            {
+                _arbitrationWinners[group] = -1;
+                _arbitrationCandidateCounts[group] = 0;
+                _arbitrationModes[group] = (int)SpectraCueArbitrationMode.Disabled;
+                _arbitrationTimeBases[group] = (int)SpectraModulationTimeBase.Bars;
+                _arbitrationSeeds[group] = 0;
+                _arbitrationCycleLengths[group] = 1f;
+                _arbitrationPhases[group] = 0f;
+            }
+
+            for (int cue = 0; cue < CueCount; cue++)
+            {
+                if (!IsCueTimeConditionActive(cue, time)) continue;
+                if (!IsCueLayerEnabledForCue(cue))
+                {
+                    layerSuppressedCueCount++;
+                    continue;
+                }
+                SpectraCueArbitrationMode mode =
+                    (SpectraCueArbitrationMode)cueArbitrationModes[cue];
+                int group = cueArbitrationGroups[cue];
+                if (mode == SpectraCueArbitrationMode.Disabled
+                    || group < 0 || group >= 16) continue;
+
+                if (_arbitrationCandidateCounts[group] == 0)
+                {
+                    _arbitrationModes[group] = (int)mode;
+                    _arbitrationTimeBases[group] = cueArbitrationTimeBases[cue];
+                    _arbitrationSeeds[group] = cueArbitrationSeeds[cue];
+                    _arbitrationCycleLengths[group] = cueArbitrationCycleLengths[cue];
+                    _arbitrationPhases[group] = cueArbitrationPhases[cue];
+                    _arbitrationWinners[group] = cue;
+                }
+                _arbitrationCandidateCounts[group]++;
+                if (mode != SpectraCueArbitrationMode.DeterministicCycle
+                    && IsBetterArbitrationCandidate(
+                        cue, _arbitrationWinners[group], mode))
+                    _arbitrationWinners[group] = cue;
+            }
+
+            for (int group = 0; group < 16; group++)
+            {
+                int count = _arbitrationCandidateCounts[group];
+                if (count <= 0) continue;
+                SpectraCueArbitrationMode mode =
+                    (SpectraCueArbitrationMode)_arbitrationModes[group];
+                if (mode == SpectraCueArbitrationMode.DeterministicCycle)
+                {
+                    float clock = ResolveRelativeClock(time, 0f,
+                        (SpectraModulationTimeBase)_arbitrationTimeBases[group]);
+                    int cycle = Mathf.FloorToInt(clock / Mathf.Max(0.0001f,
+                        _arbitrationCycleLengths[group]) + _arbitrationPhases[group]);
+                    int seedOffset = Mathf.Min(count - 1, Mathf.FloorToInt(
+                        DeterministicUnitValue(_arbitrationSeeds[group], group) * count));
+                    int targetOrdinal = PositiveModulo(cycle + seedOffset, count);
+                    int ordinal = 0;
+                    for (int cue = 0; cue < CueCount; cue++)
+                    {
+                        if (cueArbitrationGroups[cue] != group
+                            || (SpectraCueArbitrationMode)cueArbitrationModes[cue]
+                                == SpectraCueArbitrationMode.Disabled
+                            || !IsCuePreArbitrationActive(cue, time)) continue;
+                        if (ordinal == targetOrdinal)
+                        {
+                            _arbitrationWinners[group] = cue;
+                            break;
+                        }
+                        ordinal++;
+                    }
+                }
+                arbitrationSuppressedCueCount += Mathf.Max(0, count - 1);
+            }
+        }
+
+        private void EnsureArbitrationScratchArrays()
+        {
+            if (_arbitrationWinners != null && _arbitrationWinners.Length == 16)
+                return;
+            _arbitrationWinners = new int[16];
+            _arbitrationCandidateCounts = new int[16];
+            _arbitrationModes = new int[16];
+            _arbitrationTimeBases = new int[16];
+            _arbitrationSeeds = new int[16];
+            _arbitrationCycleLengths = new float[16];
+            _arbitrationPhases = new float[16];
+        }
+
+        private bool IsBetterArbitrationCandidate(
+            int cue,
+            int current,
+            SpectraCueArbitrationMode mode)
+        {
+            if (current < 0) return true;
+            if (mode == SpectraCueArbitrationMode.LatestStart)
+            {
+                if (cueStarts[cue] > cueStarts[current] + 0.0001f) return true;
+                if (cueStarts[cue] + 0.0001f < cueStarts[current]) return false;
+            }
+            else if (mode == SpectraCueArbitrationMode.EarliestStart)
+            {
+                if (cueStarts[cue] + 0.0001f < cueStarts[current]) return true;
+                if (cueStarts[cue] > cueStarts[current] + 0.0001f) return false;
+            }
+            int priority = ResolveCuePriority(cue);
+            int currentPriority = ResolveCuePriority(current);
+            return priority > currentPriority
+                || (priority == currentPriority && cue > current);
+        }
+
+        private int ResolveCuePriority(int cue)
+        {
+            int priority = cuePriorities[cue];
+            int layerIndex = cueLayerIndices[cue];
+            if (layerIndex >= 0 && cueLayerPriorityBiases != null
+                && layerIndex < cueLayerPriorityBiases.Length)
+                priority += cueLayerPriorityBiases[layerIndex];
+            return priority;
+        }
+
+        private bool IsCueLayerEnabledForCue(int cue)
+        {
+            int layerIndex = cueLayerIndices[cue];
+            if (layerIndex < 0) return true;
+            return IsCueLayerEnabled(layerIndex);
+        }
+
+        private bool IsCueLayerAllowedOnPlatform(int layerIndex)
+        {
+            if (!IsCueLayerUsable(layerIndex)) return false;
+            if (localPlatform == SpectraPlatformKind.Quest)
+                return cueLayerQuestEnabled[layerIndex];
+            if (localPlatform == SpectraPlatformKind.IOS)
+                return cueLayerIosEnabled[layerIndex];
+            if (localPlatform == SpectraPlatformKind.Android)
+                return cueLayerAndroidEnabled[layerIndex];
+            return cueLayerPcEnabled[layerIndex];
+        }
+
+        private int GetCueLayerAdmissionLimit(int layerIndex)
+        {
+            if (!IsCueLayerUsable(layerIndex)) return 0;
+            return Mathf.Clamp(cueLayerMaximumActiveCues[layerIndex], 0, 32);
         }
 
         private bool IsCueSupportedOnPlatform(int cue)
