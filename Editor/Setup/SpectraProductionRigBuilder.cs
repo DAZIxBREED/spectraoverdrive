@@ -20,9 +20,9 @@ namespace SpectraOverdrive.Editor
 
         private void OnGUI()
         {
-            EditorGUILayout.LabelField("SpectraOverdrive 1.4 Production Rig", EditorStyles.boldLabel);
+            EditorGUILayout.LabelField("SpectraOverdrive 1.5 Production Rig", EditorStyles.boldLabel);
             EditorGUILayout.HelpBox(
-                "Creates and wires the server-time network controller, baked show player(s), live override layer, recorder, snapshot cache, macro snapshot recall, event router, platform manager, AudioLink adapter, and emergency bus.",
+                "Creates and wires the server-time network controller, baked show player(s), live override layer, recorder, snapshot cache, macro snapshot recall, cue-layer control, event router, platform manager, AudioLink adapter, and emergency bus.",
                 MessageType.Info);
             _singleShow = (SpectraShowAsset)EditorGUILayout.ObjectField(
                 "Single Show", _singleShow, typeof(SpectraShowAsset), false);
@@ -55,7 +55,7 @@ namespace SpectraOverdrive.Editor
             if (shows.Count == 0 && singleShow != null) shows.Add(singleShow);
             if (shows.Count == 0) return null;
 
-            GameObject root = new GameObject("SpectraOverdrive 1.4 Production Rig");
+            GameObject root = new GameObject("SpectraOverdrive 1.5 Production Rig");
             Undo.RegisterCreatedObjectUndo(root, "Create SpectraOverdrive production rig");
             SpectraPlatformManager platform = Undo.AddComponent<SpectraPlatformManager>(root);
             SpectraLocalQualityController quality = Undo.AddComponent<SpectraLocalQualityController>(root);
@@ -75,6 +75,7 @@ namespace SpectraOverdrive.Editor
             SpectraHotCueBankController hotCues = Undo.AddComponent<SpectraHotCueBankController>(root);
             SpectraPerformanceMacroController macros = Undo.AddComponent<SpectraPerformanceMacroController>(root);
             SpectraMacroSnapshotController macroSnapshots = Undo.AddComponent<SpectraMacroSnapshotController>(root);
+            SpectraCueLayerController cueLayers = Undo.AddComponent<SpectraCueLayerController>(root);
             SpectraSceneStackController scenes = Undo.AddComponent<SpectraSceneStackController>(root);
             overrides.recorder = recorder;
             network.overrideLayer = overrides;
@@ -84,6 +85,7 @@ namespace SpectraOverdrive.Editor
             hotCues.networkController = network;
             macros.networkController = network;
             macroSnapshots.networkController = network;
+            cueLayers.networkController = network;
             scenes.networkController = network;
 
             SpectraShowRuntimePlayer[] players = new SpectraShowRuntimePlayer[shows.Count];

@@ -1,78 +1,80 @@
-# SpectraOverdrive 1.4.0
+# SpectraOverdrive 1.5.0
 
 SpectraOverdrive is a cross-platform Unity and VRChat stage-lighting authoring,
 playback, synchronization, and live-operation system written by DAZIxBREED.
-One compiled show preserves timing, cue intent, safety, macro state, generative
-choices, and scene transitions across PCVR, Quest, iOS, and Android while each
-client applies its own bounded rendering policy.
+A single compiled show preserves timing, cue intent, safety, operator state, and
+deterministic routing across PCVR, Quest, iOS, and Android while each client
+uses its own bounded rendering policy.
 
-## What 1.4 adds
+## What 1.5 adds
 
-- schema-v7 editable and portable shows
-- deterministic per-cue conditions:
-  - Probability
-  - Every Nth Cycle
-  - Macro Above / Below
-  - Audio Above / Below
-- synchronized variation groups with Cycle, Ping-Pong, Seeded Random, and
-  Macro Select routing
-- up to 16 variation groups and eight options per group
-- absolute show-clock variation selection, keeping clients and overlapping cues
-  on the same option without extra network messages
-- conditioned and non-selected variation cues rejected before local active-cue
-  budget allocation
-- up to 16 show-defined performance macro snapshots
-- synchronized recall of all four performance macros with one transition
-- desktop/VR-friendly `SpectraMacroSnapshotController`
-- timeline `COND` and `VAR` badges and one-click generative authoring presets
-- schema-v6 to schema-v7 migration, JSON support, deterministic signatures,
-  release reporting, platform analysis, and expanded runtime self-tests
-- updated Neon Drop demo containing real conditional accents, synchronized
-  movement variations, and macro snapshot looks
+### Synchronized cue layers
 
-All 1.3 features remain: deterministic rhythm gates, dynamic color palettes,
-procedural modulation, four synchronized macro buses, ordered scene stacks,
-flattened keyframe automation, variable-tempo hot cues, fixture capability
-fallbacks, server-time playback, late-join recovery, show banks, live overrides,
-recording, snapshots, optics, AudioLink, world events, adaptive quality, signed
-portable shows, VRSL migration, accessibility controls, and emergency blackout.
+Shows can define up to sixteen named cue layers. Each layer has:
 
-## Deterministic cue conditions
+- a display name, description, and operator color
+- an authored default enabled state
+- independent PCVR, Quest, iOS, and Android availability
+- a priority bias applied before global cue-budget admission
+- an optional per-layer active-cue ceiling
 
-Conditions are compiled into primitive arrays and evaluated before a cue enters
-the platform's active-cue budget. Probability and Every-N conditions use the
-cue-relative clock and deterministic integer hashing. Macro conditions use the
-four synchronized performance macro buses. Audio conditions use the runtime
-AudioLink adapter's published/manual CPU-side band values; shader-only texture
-sampling is intentionally not pulled back to the CPU.
+Cues bind to a layer by a flattened integer index. The authoritative network
+controller synchronizes enabled and solo bitmasks, so operators can mute, restore,
+or isolate entire programmed looks without seeking, recompiling, or changing the
+show clock. Late joiners receive the same layer state.
 
-No condition requires runtime allocation, collections, reflection, JSON parsing,
-or client-local random state.
+### Deterministic cue arbitration
 
-## Synchronized variation groups
+Up to sixteen arbitration groups resolve overlapping alternatives before they
+consume the platform's active-cue budget. Available policies are:
 
-Cues in one variation group share the same mode, option count, clock, phase,
-seed, and macro binding. Each cue declares which option it belongs to. The
-runtime selects one option from the absolute show clock, so overlapping cues
-with different start times still agree on the same look.
+- **Highest Priority** — chooses the cue with the highest authored priority plus
+  its layer bias.
+- **Latest Start** — lets the newest overlapping cue take control.
+- **Earliest Start** — preserves the oldest active cue.
+- **Deterministic Cycle** — rotates through active candidates from seconds,
+  beats, or bars using an authored seed and phase.
 
-- **Cycle:** advances through options in order.
-- **Ping-Pong:** walks forward and backward through the group.
-- **Seeded Random:** picks one deterministic option per cycle.
-- **Macro Select:** maps a synchronized macro value to an option.
+Ties are resolved from compiled cue order, not client-local random state. The
+same show time therefore produces the same winner on PCVR, Quest, iOS, Android,
+and late-joining clients.
 
-Multiple cues may use the same option, allowing one variation to contain a
-layered movement, color, intensity, and optics look.
+### Authoring and operation
 
-## Performance macro snapshots
+- new `SpectraCueLayerController` for desktop or VR UI binding
+- production-rig generation now creates and wires the layer controller
+- one-click starter layers: Base, Movement, Accents, and Safety
+- timeline `L#` and `ARB` badges
+- one-click layer assignment and priority/cycle arbitration presets
+- Neon Drop demo content with synchronized layer routing and an alternating
+  second-drop color arbitration group
+- schema-v7 to schema-v8 migration that leaves old shows behaviorally unchanged
+  until layers or arbitration are explicitly authored
+- compiler, portable JSON, content signatures, release reports, platform
+  analysis, and runtime self-tests extended for all new fields
 
-A snapshot stores four normalized macro values, a display name/color, and a
-transition time. Recalling a snapshot writes one compact synchronized state:
-the four targets, their common server-time transition, the snapshot index, and
-a revision. Late joiners reconstruct the same transition from server time.
+All earlier systems remain available: cue conditions, synchronized variation
+groups, macro snapshots, rhythm gates, dynamic palettes, procedural modulation,
+four synchronized macro buses, ordered scene stacks, flattened automation,
+variable-tempo hot cues, fixture capability fallbacks, late-join recovery, live
+overrides, recording, optics, AudioLink, world events, adaptive quality,
+accessibility controls, and emergency blackout.
 
-The production-rig generator automatically adds and wires a
-`SpectraMacroSnapshotController`.
+## Runtime order of operations
+
+For every evaluation tick, SpectraOverdrive performs the following bounded,
+allocation-free routing sequence:
+
+1. Resolve cue time, conditions, variation selection, and rhythm-gate state.
+2. Reject cues whose layer is muted, solo-excluded, or unavailable on the local
+   platform.
+3. Resolve one winner for each arbitration group.
+4. Sort remaining cues by authored priority plus layer bias.
+5. Enforce per-layer admission ceilings.
+6. Enforce the global platform active-cue budget.
+7. Evaluate and publish the selected cues.
+
+This prevents inactive alternatives from stealing mobile cue capacity.
 
 ## Default runtime ceilings
 
@@ -84,39 +86,43 @@ The production-rig generator automatically adds and wires a
 | Android phone/tablet | 32 | 48 | 30 Hz | 10 | Emissive Only |
 
 Adaptive quality may lower local concurrency, fixture count, beam count, shader
-tier, and evaluation cadence. It does not change show time, deterministic
-condition results, variation selection, rhythm steps, palette selection, macro
-targets, scene targets, hot-cue timing, safety state, or another user's local
-accessibility settings.
+tier, and evaluation cadence. It does not alter show time, layer masks,
+arbitration winners, deterministic conditions, variation choices, macro targets,
+scene targets, hot-cue timing, safety state, or another user's local comfort
+settings.
 
-## Install
+## Install or upgrade
 
 1. Back up the Unity project.
-2. Remove an older embedded SpectraOverdrive package or replace its folder.
-3. Copy this folder under `Packages/com.dazixbreed.spectraoverdrive`, or add it
-   through the Unity Package Manager as a local package.
-4. Open the project with Unity 2022.3 LTS and allow scripts to compile.
-5. Run **SpectraOverdrive > Show Programmer > Run Runtime Self-Test**.
-6. Run **Run 1.4 Release Readiness Check** on each show.
-7. Re-bake production runtime players after upgrading a show to schema v7.
+2. Replace the previous embedded package, or copy this folder to
+   `Packages/com.dazixbreed.spectraoverdrive`.
+3. Open the project with Unity 2022.3 LTS and allow scripts to compile.
+4. Open each existing show once so schema migration can run.
+5. Re-bake every production runtime player after moving to schema v8.
+6. Run **SpectraOverdrive > Show Programmer > Run Runtime Self-Test**.
+7. Run **Run 1.5 Release Readiness Check** on every production show.
+8. Complete the included PCVR, Quest, iOS, and Android device matrix.
+
+Do not mix a schema-v8 show with an older baked runtime player. Re-baking is
+required because cue-layer and arbitration arrays participate in the content
+signature.
 
 ## Recommended first run
 
-1. Open **SpectraOverdrive > Show Programmer > Create Neon Drop Demo**.
-2. Inspect the movement variation pair in the first drop and the conditioned
-   accent cues.
-3. Open the Show Programmer and inspect `performanceMacroSnapshots`.
-4. Create a production runtime rig.
-5. Bind UI buttons to the generated macro snapshot controller's selection and
-   recall methods.
-6. Use the platform simulator and release-readiness validator.
+1. Create the **Neon Drop Demo**.
+2. Inspect the `cueLayers` section on the show asset.
+3. Inspect the second-drop color cues carrying the `ARB` badge.
+4. Create a **SpectraOverdrive 1.5 Production Rig**.
+5. Bind operator buttons to `SpectraCueLayerController` toggle, solo, reset,
+   next, and previous methods.
+6. Test the same show with all four platform policies in the simulator.
 
 ## Important folders
 
-- `Runtime/Shows` — editable/compiled show types and schema migration
-- `Runtime/Playback` — allocation-free runtime evaluation
-- `Runtime/Network` — server-time synchronized authoritative state
-- `Runtime/Operators` — hot-cue, scene-stack, macro, and snapshot controls
+- `Runtime/Shows` — editable and compiled schemas, migration, and validation
+- `Runtime/Playback` — allocation-free cue evaluation and arbitration
+- `Runtime/Network` — server-time playback and synchronized operator state
+- `Runtime/Operators` — layer, macro, hot-cue, and scene-stack controls
 - `Editor/ShowProgrammer` — timeline, compiler, authoring helpers, and demo
 - `Editor/Validation` — platform, release, and runtime self-tests
 - `Documentation~` — architecture, upgrade, compatibility, and verification
@@ -128,16 +134,16 @@ Designed for:
 - Unity 2022.3 LTS
 - VRChat Worlds SDK 3.10 or newer
 - UdonSharp 1.1.9 or newer
-- Windows editor and Linux editor authoring workflows
+- Windows and Linux Unity editor workflows
 - PCVR, Quest, iOS, and Android runtime policies
 
-A single Unity project still needs VRChat-supported platform build targets and
-platform-appropriate content. SpectraOverdrive cannot make unsupported shaders,
-video systems, or excessive world geometry mobile-compatible by itself.
+A Unity project still needs VRChat-supported build targets and appropriately
+optimized world content. SpectraOverdrive cannot turn unsupported shaders,
+video systems, or excessive geometry into mobile-compatible assets by itself.
 
 ## Verification boundary
 
-The package includes executable editor self-tests and extensive static source
-checks. This archive was not compiled inside the user's complete Unity/VRChat
-project and was not run on physical PCVR, Quest, iOS, or Android hardware here.
-Run the included checks and device matrix before production deployment.
+The package includes executable Unity editor self-tests and static source checks.
+The source was not compiled inside your complete Unity/VRChat project and was not
+run on physical PCVR, Quest, iOS, or Android hardware in this environment. Run
+the included checks and device matrix before a production event.

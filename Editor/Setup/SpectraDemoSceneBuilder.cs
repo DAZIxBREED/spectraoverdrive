@@ -22,7 +22,7 @@ namespace SpectraOverdrive.Editor
         {
             EditorGUILayout.LabelField("Playable Cross-Platform Demo Scene", EditorStyles.boldLabel);
             EditorGUILayout.HelpBox(
-                "Creates a clean scene with real Spectra fixture groups, mobile-safe emissive visualizers, a camera, and the complete synchronized 1.4 production rig. Unity will ask before replacing an unsaved scene.",
+                "Creates a clean scene with real Spectra fixture groups, mobile-safe emissive visualizers, a camera, and the complete synchronized 1.5 production rig. Unity will ask before replacing an unsaved scene.",
                 MessageType.Info);
             _show = (SpectraShowAsset)EditorGUILayout.ObjectField(
                 "Show", _show, typeof(SpectraShowAsset), false);
@@ -124,7 +124,7 @@ namespace SpectraOverdrive.Editor
             EditorSceneManager.SaveScene(scene, scenePath);
             EditorUtility.DisplayDialog("SpectraOverdrive",
                 "Created a playable demo scene with " + show.fixtureGroups.Length
-                + " fixture groups and the synchronized 1.4 runtime rig.", "OK");
+                + " fixture groups and the synchronized 1.5 runtime rig.", "OK");
         }
 
         private static string Sanitize(string value)

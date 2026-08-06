@@ -9,7 +9,7 @@ namespace SpectraOverdrive.Editor
     internal class SpectraPortableShowData
     {
         public string format = "SpectraOverdrive.Show";
-        public string createdWith = "1.4.0";
+        public string createdWith = "1.5.0";
         public string contentHash;
         public int schemaVersion;
         public string showId;
@@ -29,6 +29,7 @@ namespace SpectraOverdrive.Editor
         public SpectraColorPalette[] colorPalettes;
         public SpectraPerformanceMacro[] performanceMacros;
         public SpectraPerformanceMacroSnapshot[] performanceMacroSnapshots;
+        public SpectraCueLayer[] cueLayers;
         public SpectraPlatformPolicy[] platformPolicies;
         public SpectraAccessibilityMetadata accessibility;
 
@@ -37,7 +38,7 @@ namespace SpectraOverdrive.Editor
             return new SpectraPortableShowData
             {
                 format = "SpectraOverdrive.Show",
-                createdWith = "1.4.0",
+                createdWith = "1.5.0",
                 contentHash = string.Empty,
                 schemaVersion = show.schemaVersion,
                 showId = show.showId,
@@ -57,6 +58,7 @@ namespace SpectraOverdrive.Editor
                 colorPalettes = show.colorPalettes,
                 performanceMacros = show.performanceMacros,
                 performanceMacroSnapshots = show.performanceMacroSnapshots,
+                cueLayers = show.cueLayers,
                 platformPolicies = show.platformPolicies,
                 accessibility = show.accessibility
             };
@@ -83,6 +85,7 @@ namespace SpectraOverdrive.Editor
             show.performanceMacros = performanceMacros ?? new SpectraPerformanceMacro[0];
             show.performanceMacroSnapshots = performanceMacroSnapshots
                 ?? new SpectraPerformanceMacroSnapshot[0];
+            show.cueLayers = cueLayers ?? new SpectraCueLayer[0];
             show.platformPolicies = platformPolicies ?? new SpectraPlatformPolicy[0];
             show.accessibility = accessibility ?? new SpectraAccessibilityMetadata();
         }
@@ -120,7 +123,7 @@ namespace SpectraOverdrive.Editor
                 {
                     if (data.schemaVersion >= SpectraShowAsset.CurrentSchemaVersion)
                         throw new InvalidDataException("Show integrity check failed. The file is damaged or was modified outside SpectraOverdrive.");
-                    Debug.LogWarning("[SpectraOverdrive 1.4] A legacy show could not be verified with the schema-7 serializer. It will be migrated, validated, and re-signed when exported.");
+                    Debug.LogWarning("[SpectraOverdrive 1.5] A legacy show could not be verified with the schema-8 serializer. It will be migrated, validated, and re-signed when exported.");
                 }
                 data.contentHash = expectedHash;
             }
@@ -130,6 +133,7 @@ namespace SpectraOverdrive.Editor
             if (data.schemaVersion == 4) MigrateV4ToV5(data);
             if (data.schemaVersion == 5) MigrateV5ToV6(data);
             if (data.schemaVersion == 6) MigrateV6ToV7(data);
+            if (data.schemaVersion == 7) MigrateV7ToV8(data);
             if (data.schemaVersion != SpectraShowAsset.CurrentSchemaVersion)
                 throw new InvalidDataException("Unsupported show schema version " + data.schemaVersion + ".");
             data.ApplyTo(target);
@@ -333,6 +337,32 @@ namespace SpectraOverdrive.Editor
                     cue.variationTimeBase = SpectraModulationTimeBase.Bars;
                     cue.variationCycleLength = 1f;
                     cue.variationMacroIndex = -1;
+                }
+            }
+        }
+
+        private static void MigrateV7ToV8(SpectraPortableShowData data)
+        {
+            data.schemaVersion = 8;
+            data.format = "SpectraOverdrive.Show";
+            data.createdWith = "1.5.0";
+            data.cueLayers = new SpectraCueLayer[0];
+            if (data.tracks == null) return;
+            for (int trackIndex = 0; trackIndex < data.tracks.Length; trackIndex++)
+            {
+                SpectraTimelineTrack track = data.tracks[trackIndex];
+                if (track == null || track.cues == null) continue;
+                for (int cueIndex = 0; cueIndex < track.cues.Length; cueIndex++)
+                {
+                    SpectraCueBlock cue = track.cues[cueIndex];
+                    if (cue == null) continue;
+                    cue.layerIndex = -1;
+                    cue.arbitrationMode = SpectraCueArbitrationMode.Disabled;
+                    cue.arbitrationGroup = -1;
+                    cue.arbitrationTimeBase = SpectraModulationTimeBase.Bars;
+                    cue.arbitrationCycleLength = 1f;
+                    cue.arbitrationPhase = 0f;
+                    cue.arbitrationSeed = 0;
                 }
             }
         }

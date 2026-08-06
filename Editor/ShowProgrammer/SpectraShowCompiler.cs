@@ -39,6 +39,7 @@ namespace SpectraOverdrive.Editor
             CompileColorPalettes(asset, result);
             CompilePerformanceMacros(asset, result);
             CompilePerformanceMacroSnapshots(asset, result);
+            CompileCueLayers(asset, result);
 
             int groupCount = asset.fixtureGroups == null ? 0 : asset.fixtureGroups.Length;
             result.runtimeGroupIds = new int[groupCount];
@@ -137,6 +138,11 @@ namespace SpectraOverdrive.Editor
             result.cueVariationTimeBases = new int[count];
             result.cueVariationSeeds = new int[count];
             result.cueVariationMacroIndices = new int[count];
+            result.cueLayerIndices = new int[count];
+            result.cueArbitrationModes = new int[count];
+            result.cueArbitrationGroups = new int[count];
+            result.cueArbitrationTimeBases = new int[count];
+            result.cueArbitrationSeeds = new int[count];
             result.cueConditionInverts = new bool[count];
             result.cueGateInverts = new bool[count];
             result.cueEventOnce = new bool[count];
@@ -164,6 +170,8 @@ namespace SpectraOverdrive.Editor
             result.cueConditionThresholds = new float[count];
             result.cueVariationCycleLengths = new float[count];
             result.cueVariationPhases = new float[count];
+            result.cueArbitrationCycleLengths = new float[count];
+            result.cueArbitrationPhases = new float[count];
             result.cueColors = new Color[count];
             result.cueValues = new Vector4[count];
             result.cueMovementParameters = new Vector4[count];
@@ -258,6 +266,14 @@ namespace SpectraOverdrive.Editor
                 result.cueVariationMacroIndices[i] = cue.variationMacroIndex;
                 result.cueVariationCycleLengths[i] = Mathf.Max(0.0001f, cue.variationCycleLength);
                 result.cueVariationPhases[i] = cue.variationPhase;
+                result.cueLayerIndices[i] = cue.layerIndex;
+                result.cueArbitrationModes[i] = (int)cue.arbitrationMode;
+                result.cueArbitrationGroups[i] = cue.arbitrationGroup;
+                result.cueArbitrationTimeBases[i] = (int)cue.arbitrationTimeBase;
+                result.cueArbitrationSeeds[i] = cue.arbitrationSeed;
+                result.cueArbitrationCycleLengths[i] = Mathf.Max(
+                    0.0001f, cue.arbitrationCycleLength);
+                result.cueArbitrationPhases[i] = cue.arbitrationPhase;
                 result.cueStarts[i] = source.start;
                 result.cueDurations[i] = source.duration;
                 result.cueFadeIns[i] = Mathf.Min(cue.fadeIn, source.duration);
@@ -356,6 +372,15 @@ namespace SpectraOverdrive.Editor
             player.performanceMacroSnapshotColors = source.performanceMacroSnapshotColors;
             player.performanceMacroSnapshotValues = source.performanceMacroSnapshotValues;
             player.performanceMacroSnapshotTransitionSeconds = source.performanceMacroSnapshotTransitionSeconds;
+            player.cueLayerNames = source.cueLayerNames;
+            player.cueLayerColors = source.cueLayerColors;
+            player.cueLayerDefaultEnabled = source.cueLayerDefaultEnabled;
+            player.cueLayerPcEnabled = source.cueLayerPcEnabled;
+            player.cueLayerQuestEnabled = source.cueLayerQuestEnabled;
+            player.cueLayerIosEnabled = source.cueLayerIosEnabled;
+            player.cueLayerAndroidEnabled = source.cueLayerAndroidEnabled;
+            player.cueLayerPriorityBiases = source.cueLayerPriorityBiases;
+            player.cueLayerMaximumActiveCues = source.cueLayerMaximumActiveCues;
             player.runtimeGroupIds = source.runtimeGroupIds;
             player.groupStableIds = source.groupStableIds;
             player.groupSelections = source.groupSelections;
@@ -408,6 +433,11 @@ namespace SpectraOverdrive.Editor
             player.cueVariationTimeBases = source.cueVariationTimeBases;
             player.cueVariationSeeds = source.cueVariationSeeds;
             player.cueVariationMacroIndices = source.cueVariationMacroIndices;
+            player.cueLayerIndices = source.cueLayerIndices;
+            player.cueArbitrationModes = source.cueArbitrationModes;
+            player.cueArbitrationGroups = source.cueArbitrationGroups;
+            player.cueArbitrationTimeBases = source.cueArbitrationTimeBases;
+            player.cueArbitrationSeeds = source.cueArbitrationSeeds;
             player.cueConditionInverts = source.cueConditionInverts;
             player.cueGateInverts = source.cueGateInverts;
             player.cueEventOnce = source.cueEventOnce;
@@ -435,6 +465,8 @@ namespace SpectraOverdrive.Editor
             player.cueConditionThresholds = source.cueConditionThresholds;
             player.cueVariationCycleLengths = source.cueVariationCycleLengths;
             player.cueVariationPhases = source.cueVariationPhases;
+            player.cueArbitrationCycleLengths = source.cueArbitrationCycleLengths;
+            player.cueArbitrationPhases = source.cueArbitrationPhases;
             player.cueColors = source.cueColors;
             player.cueValues = source.cueValues;
             player.cueMovementParameters = source.cueMovementParameters;
@@ -464,6 +496,7 @@ namespace SpectraOverdrive.Editor
             player.tempoMarkerBpms = source.tempoMarkerBpms;
             player.tempoMarkerNumerators = source.tempoMarkerNumerators;
             player.ResetPerformanceMacrosToDefaults();
+            player.ResetCueLayerMasksToDefaults();
         }
 
         private static void CompileColorPalettes(SpectraShowAsset asset, SpectraCompiledShow result)
@@ -528,6 +561,38 @@ namespace SpectraOverdrive.Editor
                 result.performanceMacroSnapshotValues[i] = values;
                 result.performanceMacroSnapshotTransitionSeconds[i] =
                     Mathf.Clamp(snapshot.transitionSeconds, 0f, 8f);
+            }
+        }
+
+        private static void CompileCueLayers(
+            SpectraShowAsset asset,
+            SpectraCompiledShow result)
+        {
+            int count = asset.cueLayers == null
+                ? 0 : Mathf.Min(16, asset.cueLayers.Length);
+            result.cueLayerNames = new string[count];
+            result.cueLayerColors = new Color[count];
+            result.cueLayerDefaultEnabled = new bool[count];
+            result.cueLayerPcEnabled = new bool[count];
+            result.cueLayerQuestEnabled = new bool[count];
+            result.cueLayerIosEnabled = new bool[count];
+            result.cueLayerAndroidEnabled = new bool[count];
+            result.cueLayerPriorityBiases = new int[count];
+            result.cueLayerMaximumActiveCues = new int[count];
+            for (int i = 0; i < count; i++)
+            {
+                SpectraCueLayer layer = asset.cueLayers[i];
+                result.cueLayerNames[i] = layer.name;
+                result.cueLayerColors[i] = layer.displayColor;
+                result.cueLayerDefaultEnabled[i] = layer.defaultEnabled;
+                result.cueLayerPcEnabled[i] = layer.pcEnabled;
+                result.cueLayerQuestEnabled[i] = layer.questEnabled;
+                result.cueLayerIosEnabled[i] = layer.iosEnabled;
+                result.cueLayerAndroidEnabled[i] = layer.androidEnabled;
+                result.cueLayerPriorityBiases[i] = Mathf.Clamp(
+                    layer.priorityBias, -100, 100);
+                result.cueLayerMaximumActiveCues[i] = Mathf.Clamp(
+                    layer.maximumActiveCues, 0, 32);
             }
         }
 
@@ -758,6 +823,21 @@ namespace SpectraOverdrive.Editor
                     HashFloat(ref hash, show.performanceMacroSnapshotValues[i].w);
                     HashFloat(ref hash, show.performanceMacroSnapshotTransitionSeconds[i]);
                 }
+                for (int i = 0; i < show.cueLayerNames.Length; i++)
+                {
+                    HashString(ref hash, show.cueLayerNames[i]);
+                    HashFloat(ref hash, show.cueLayerColors[i].r);
+                    HashFloat(ref hash, show.cueLayerColors[i].g);
+                    HashFloat(ref hash, show.cueLayerColors[i].b);
+                    HashFloat(ref hash, show.cueLayerColors[i].a);
+                    HashInt(ref hash, show.cueLayerDefaultEnabled[i] ? 1 : 0);
+                    HashInt(ref hash, show.cueLayerPcEnabled[i] ? 1 : 0);
+                    HashInt(ref hash, show.cueLayerQuestEnabled[i] ? 1 : 0);
+                    HashInt(ref hash, show.cueLayerIosEnabled[i] ? 1 : 0);
+                    HashInt(ref hash, show.cueLayerAndroidEnabled[i] ? 1 : 0);
+                    HashInt(ref hash, show.cueLayerPriorityBiases[i]);
+                    HashInt(ref hash, show.cueLayerMaximumActiveCues[i]);
+                }
                 for (int i = 0; i < show.runtimeGroupIds.Length; i++)
                 {
                     HashInt(ref hash, show.runtimeGroupIds[i]);
@@ -815,6 +895,11 @@ namespace SpectraOverdrive.Editor
                     HashInt(ref hash, show.cueVariationTimeBases[i]);
                     HashInt(ref hash, show.cueVariationSeeds[i]);
                     HashInt(ref hash, show.cueVariationMacroIndices[i]);
+                    HashInt(ref hash, show.cueLayerIndices[i]);
+                    HashInt(ref hash, show.cueArbitrationModes[i]);
+                    HashInt(ref hash, show.cueArbitrationGroups[i]);
+                    HashInt(ref hash, show.cueArbitrationTimeBases[i]);
+                    HashInt(ref hash, show.cueArbitrationSeeds[i]);
                     HashInt(ref hash, show.cueConditionInverts[i] ? 1 : 0);
                     HashInt(ref hash, show.cueGateInverts[i] ? 1 : 0);
                     HashInt(ref hash, show.cueEventOnce[i] ? 1 : 0);
@@ -842,6 +927,8 @@ namespace SpectraOverdrive.Editor
                     HashFloat(ref hash, show.cueConditionThresholds[i]);
                     HashFloat(ref hash, show.cueVariationCycleLengths[i]);
                     HashFloat(ref hash, show.cueVariationPhases[i]);
+                    HashFloat(ref hash, show.cueArbitrationCycleLengths[i]);
+                    HashFloat(ref hash, show.cueArbitrationPhases[i]);
                     HashFloat(ref hash, show.cueValues[i].x);
                     HashFloat(ref hash, show.cueValues[i].y);
                     HashFloat(ref hash, show.cueValues[i].z);

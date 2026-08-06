@@ -23,6 +23,7 @@ namespace SpectraOverdrive
         [Range(0, 3)] public int requestedPerformanceMacroIndex;
         [Range(0f, 1f)] public float requestedPerformanceMacroValue = 1f;
         public int requestedPerformanceMacroSnapshotIndex = -1;
+        [Range(0, 15)] public int requestedCueLayerIndex;
 
         [Header("Synchronized authoritative state")]
         [UdonSynced] public int revision;
@@ -54,6 +55,9 @@ namespace SpectraOverdrive
         [UdonSynced] public float performanceMacroTarget1 = 1f;
         [UdonSynced] public float performanceMacroTarget2 = 1f;
         [UdonSynced] public float performanceMacroTarget3 = 1f;
+        [UdonSynced] public int cueLayerRevision;
+        [UdonSynced] public int synchronizedCueLayerEnabledMask = -1;
+        [UdonSynced] public int synchronizedCueLayerSoloMask;
 
         [Header("Local diagnostics")]
         public SpectraNetworkSyncStatus syncStatus = SpectraNetworkSyncStatus.Offline;
@@ -80,6 +84,7 @@ namespace SpectraOverdrive
             {
                 syncStatus = SpectraNetworkSyncStatus.Offline;
                 InitializePerformanceMacros(ActivePlayer(), 0d);
+                InitializeCueLayers(ActivePlayer());
                 ApplyAuthoritativeState();
                 return;
             }
@@ -100,6 +105,16 @@ namespace SpectraOverdrive
                 performanceMacroRevision++;
                 revision++;
                 RequestSerialization();
+            }
+            if (cueLayerRevision == 0)
+            {
+                InitializeCueLayers(ActivePlayer());
+                if (Networking.IsOwner(gameObject))
+                {
+                    cueLayerRevision++;
+                    revision++;
+                    RequestSerialization();
+                }
             }
             ApplyAuthoritativeState();
         }
@@ -180,6 +195,8 @@ namespace SpectraOverdrive
             ClearHotCueSchedule();
             InitializePerformanceMacros(player, Networking.GetServerTimeInSeconds());
             performanceMacroRevision++;
+            InitializeCueLayers(player);
+            cueLayerRevision++;
             revision++;
             CommitAndApply();
         }
@@ -495,6 +512,82 @@ namespace SpectraOverdrive
             CommitAndApply();
         }
 
+        public void ToggleRequestedCueLayer()
+        {
+            ToggleCueLayer(requestedCueLayerIndex);
+        }
+
+        public void ToggleCueLayer(int layerIndex)
+        {
+            if (!AcquireControl()) return;
+            SpectraShowRuntimePlayer player = ActivePlayer();
+            if (player == null || !player.IsCueLayerUsable(layerIndex)) return;
+            int bit = 1 << layerIndex;
+            synchronizedCueLayerEnabledMask ^= bit;
+            cueLayerRevision++;
+            revision++;
+            CommitAndApply();
+        }
+
+        public void EnableRequestedCueLayer()
+        {
+            SetCueLayerEnabled(requestedCueLayerIndex, true);
+        }
+
+        public void DisableRequestedCueLayer()
+        {
+            SetCueLayerEnabled(requestedCueLayerIndex, false);
+        }
+
+        public void SetCueLayerEnabled(int layerIndex, bool enabled)
+        {
+            if (!AcquireControl()) return;
+            SpectraShowRuntimePlayer player = ActivePlayer();
+            if (player == null || !player.IsCueLayerUsable(layerIndex)) return;
+            int bit = 1 << layerIndex;
+            if (enabled) synchronizedCueLayerEnabledMask |= bit;
+            else synchronizedCueLayerEnabledMask &= ~bit;
+            cueLayerRevision++;
+            revision++;
+            CommitAndApply();
+        }
+
+        public void SoloRequestedCueLayer()
+        {
+            SoloCueLayer(requestedCueLayerIndex);
+        }
+
+        public void SoloCueLayer(int layerIndex)
+        {
+            if (!AcquireControl()) return;
+            SpectraShowRuntimePlayer player = ActivePlayer();
+            if (player == null || !player.IsCueLayerUsable(layerIndex)) return;
+            int bit = 1 << layerIndex;
+            synchronizedCueLayerSoloMask = synchronizedCueLayerSoloMask == bit
+                ? 0 : bit;
+            cueLayerRevision++;
+            revision++;
+            CommitAndApply();
+        }
+
+        public void ClearCueLayerSolo()
+        {
+            if (!AcquireControl()) return;
+            synchronizedCueLayerSoloMask = 0;
+            cueLayerRevision++;
+            revision++;
+            CommitAndApply();
+        }
+
+        public void ResetCueLayers()
+        {
+            if (!AcquireControl()) return;
+            InitializeCueLayers(ActivePlayer());
+            cueLayerRevision++;
+            revision++;
+            CommitAndApply();
+        }
+
         public float ResolvePerformanceMacro(int index, double serverTime)
         {
             float start = PerformanceMacroStart(index);
@@ -580,6 +673,9 @@ namespace SpectraOverdrive
             player.showStrobesEnabled = synchronizedStrobesEnabled;
             player.showLasersEnabled = synchronizedLasersEnabled;
             player.emergencyBlackout = emergencyBlackout;
+            player.SetCueLayerMasks(
+                synchronizedCueLayerEnabledMask,
+                synchronizedCueLayerSoloMask);
             double serverTime = Networking.GetServerTimeInSeconds();
             ApplyPerformanceMacros(player, serverTime);
             if (player.bus != null)
@@ -633,6 +729,19 @@ namespace SpectraOverdrive
             performanceMacroTransitionSeconds = 0f;
             activePerformanceMacroSnapshotIndex = -1;
             ApplyPerformanceMacros(player, serverTime);
+        }
+
+        private void InitializeCueLayers(SpectraShowRuntimePlayer player)
+        {
+            if (player == null)
+            {
+                synchronizedCueLayerEnabledMask = -1;
+                synchronizedCueLayerSoloMask = 0;
+                return;
+            }
+            player.ResetCueLayerMasksToDefaults();
+            synchronizedCueLayerEnabledMask = player.cueLayerEnabledMask;
+            synchronizedCueLayerSoloMask = 0;
         }
 
         private void ApplyPerformanceMacros(

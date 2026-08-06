@@ -28,11 +28,13 @@ namespace SpectraOverdrive.Editor
                 legacySchema4.performanceMacros = null;
                 legacySchema4.colorPalettes = null;
                 legacySchema4.performanceMacroSnapshots = null;
+                legacySchema4.cueLayers = null;
                 legacySchema4.EnsureStableIds();
-                Assert(legacySchema4.schemaVersion == 7
+                Assert(legacySchema4.schemaVersion == 8
                     && legacySchema4.performanceMacros.Length == 0
                     && legacySchema4.colorPalettes.Length == 0
                     && legacySchema4.performanceMacroSnapshots.Length == 0
+                    && legacySchema4.cueLayers.Length == 0
                     && legacySchema4.tracks[0].cues[0].performanceMacroIndex == -1
                     && legacySchema4.tracks[0].cues[0].modulationWaveform
                         == SpectraModulationWaveform.Disabled
@@ -43,10 +45,13 @@ namespace SpectraOverdrive.Editor
                     && legacySchema4.tracks[0].cues[0].conditionMode
                         == SpectraCueConditionMode.Disabled
                     && legacySchema4.tracks[0].cues[0].variationMode
-                        == SpectraVariationSelectionMode.Disabled,
+                        == SpectraVariationSelectionMode.Disabled
+                    && legacySchema4.tracks[0].cues[0].layerIndex == -1
+                    && legacySchema4.tracks[0].cues[0].arbitrationMode
+                        == SpectraCueArbitrationMode.Disabled,
                     "schema-v4 assets migrate without opting into later behavior");
-                Assert(imported.tracks.Length == 2 && imported.tracks[0].cues.Length == 8, "JSON round trip retained cue graph");
-                Assert(imported.schemaVersion == 7, "JSON round trip retained schema v7");
+                Assert(imported.tracks.Length == 2 && imported.tracks[0].cues.Length == 12, "JSON round trip retained cue graph");
+                Assert(imported.schemaVersion == 8, "JSON round trip retained schema v8");
                 Assert(json.Contains("\"contentHash\""), "portable JSON contains an integrity hash");
                 bool rejectedCorruption = false;
                 try
@@ -59,7 +64,7 @@ namespace SpectraOverdrive.Editor
                 SpectraShowJson.ImportInto(json, imported);
 
                 SpectraCompiledShow compiled = SpectraShowCompiler.Compile(imported);
-                Assert(compiled.CueCount == 9 && compiled.HasConsistentArrays(), "compiler emitted complete flattened arrays");
+                Assert(compiled.CueCount == 13 && compiled.HasConsistentArrays(), "compiler emitted complete flattened arrays");
                 Assert(compiled.contentSignature != 0 && !string.IsNullOrEmpty(compiled.contentHash), "compiler emitted a content signature");
                 Assert(compiled.groupSelections[0] == (int)SpectraFixtureSelection.Odd
                     && compiled.groupRandomSeeds[0] == 42, "compiler emitted deterministic fixture selection");
@@ -120,10 +125,21 @@ namespace SpectraOverdrive.Editor
                         == (int)SpectraVariationSelectionMode.Cycle)
                         variationCueCount++;
                 }
+                int arbitrationCueCount = 0;
+                int layerBindingCount = 0;
+                for (int compiledCue = 0; compiledCue < compiled.CueCount; compiledCue++)
+                {
+                    if (compiled.cueArbitrationModes[compiledCue]
+                        != (int)SpectraCueArbitrationMode.Disabled) arbitrationCueCount++;
+                    if (compiled.cueLayerIndices[compiledCue] >= 0) layerBindingCount++;
+                }
                 Assert(foundCondition && variationCueCount == 2
                     && compiled.performanceMacroSnapshotNames.Length == 1
-                    && compiled.performanceMacroSnapshotNames[0] == "Breakdown",
-                    "compiler emitted schema-v7 conditions, variation routing, and macro snapshots");
+                    && compiled.performanceMacroSnapshotNames[0] == "Breakdown"
+                    && compiled.cueLayerNames.Length == 2
+                    && layerBindingCount == 2
+                    && arbitrationCueCount == 4,
+                    "compiler emitted schema-v8 cue layers, arbitration, conditions, variation routing, and macro snapshots");
                 Assert(compiled.markerScenes[0] && compiled.markerSceneOrders[0] == 0,
                     "compiler emitted ordered scene-stack metadata");
                 Assert(compiled.questMaximumFixtures == 64
@@ -162,8 +178,11 @@ namespace SpectraOverdrive.Editor
                 SpectraPlatformCompatibilityResult iosReport = SpectraPlatformCompatibilityValidator.Analyze(imported, SpectraPlatformKind.IOS);
                 Assert(iosReport.cueBudget == 32 && iosReport.FitsBudget
                     && iosReport.conditionCueCount == 1
-                    && iosReport.variationCueCount == 2,
-                    "iOS compatibility report applies mobile budgets and generative counts");
+                    && iosReport.variationCueCount == 2
+                    && iosReport.cueLayerBindingCount == 2
+                    && iosReport.arbitrationCueCount == 4
+                    && iosReport.platformDisabledLayerCueCount == 2,
+                    "iOS compatibility report applies mobile budgets, layer policy, and arbitration counts");
 
                 groupObject = new GameObject("SpectraSelfTestGroup");
                 SpectraFixtureGroup group = groupObject.AddComponent<SpectraFixtureGroup>();
@@ -205,6 +224,27 @@ namespace SpectraOverdrive.Editor
                 AssertNear(-1d, group.goboIndex,
                     "group capability contract selected the emissive fallback");
                 player.groupCapabilityMasks[0] = originalGroupCapabilities;
+                player.ApplyAtTime(3.5f);
+                AssertNear(0.9d, group.intensityMultiplier,
+                    "runtime highest-priority arbitration selected one deterministic winner");
+                player.SetCueLayerMasks(1, 0);
+                player.ApplyAtTime(3.5f);
+                AssertNear(1d, group.intensityMultiplier,
+                    "runtime cue-layer mask rejected a layer before budget admission");
+                player.ResetCueLayerMasksToDefaults();
+                player.ApplyAtTime(3.5f);
+                AssertNear(0.9d, group.intensityMultiplier,
+                    "runtime cue-layer defaults restored the authored layer state");
+                player.ApplyAtTime(9.1f);
+                float cycleFirst = group.intensityMultiplier;
+                player.ApplyAtTime(9.6f);
+                float cycleSecond = group.intensityMultiplier;
+                Assert((Mathf.Abs(cycleFirst - 0.25f) < 0.0001f
+                        || Mathf.Abs(cycleFirst - 0.75f) < 0.0001f)
+                    && (Mathf.Abs(cycleSecond - 0.25f) < 0.0001f
+                        || Mathf.Abs(cycleSecond - 0.75f) < 0.0001f)
+                    && Mathf.Abs(cycleFirst - cycleSecond) > 0.1f,
+                    "runtime deterministic-cycle arbitration advanced from the absolute show clock");
                 player.ApplyAtTime(5f);
                 AssertNear(0.5d, group.intensityMultiplier, "runtime flattened automation evaluation");
                 player.ApplyAtTime(6.25f);
@@ -321,11 +361,15 @@ namespace SpectraOverdrive.Editor
                     && release.conditionCueCount == 1
                     && release.variationCueCount == 2
                     && release.variationGroupCount == 1
-                    && release.performanceMacroSnapshotCount == 1,
-                    "1.4 release-readiness pipeline");
+                    && release.performanceMacroSnapshotCount == 1
+                    && release.cueLayerCount == 2
+                    && release.cueLayerBindingCount == 2
+                    && release.arbitrationCueCount == 4
+                    && release.arbitrationGroupCount == 2,
+                    "1.5 release-readiness pipeline");
 
-                Debug.Log("SpectraOverdrive 1.4.0 self-test PASSED: schema-v7 migration, deterministic cue conditions, synchronized variation groups, macro snapshot recall, beat grid, variable-tempo runtime map, flattened automation, deterministic rhythm gates, dynamic color palettes, procedural modulation, synchronized performance macros, ordered scene stacks, quantized hot cues, capability contracts, timeline, waveform analysis, assisted generation, signed JSON, compiler, optics, overrides, snapshots, network reconstruction, platform validation, loops, and blackout.");
-                EditorUtility.DisplayDialog("SpectraOverdrive", "All 1.4.0 Show Programmer self-tests passed.", "OK");
+                Debug.Log("SpectraOverdrive 1.5.0 self-test PASSED: schema-v8 migration, synchronized cue layers, deterministic cue arbitration, cue conditions, variation groups, macro snapshot recall, beat grid, variable-tempo runtime map, flattened automation, deterministic rhythm gates, dynamic color palettes, procedural modulation, synchronized performance macros, ordered scene stacks, quantized hot cues, capability contracts, timeline, waveform analysis, assisted generation, signed JSON, compiler, optics, overrides, snapshots, network reconstruction, platform validation, loops, and blackout.");
+                EditorUtility.DisplayDialog("SpectraOverdrive", "All 1.5.0 Show Programmer self-tests passed.", "OK");
             }
             finally
             {
@@ -389,6 +433,35 @@ namespace SpectraOverdrive.Editor
                     displayColor = Color.blue,
                     values = new Vector4(0.2f, 0.3f, 0.4f, 0.5f),
                     transitionSeconds = 0.75f
+                }
+            };
+            show.cueLayers = new[]
+            {
+                new SpectraCueLayer
+                {
+                    name = "Base",
+                    description = "Always-available self-test base layer.",
+                    displayColor = Color.white,
+                    defaultEnabled = true,
+                    pcEnabled = true,
+                    questEnabled = true,
+                    iosEnabled = true,
+                    androidEnabled = true,
+                    priorityBias = 0,
+                    maximumActiveCues = 0
+                },
+                new SpectraCueLayer
+                {
+                    name = "Accents",
+                    description = "PC/Quest/Android arbitration test layer.",
+                    displayColor = Color.yellow,
+                    defaultEnabled = true,
+                    pcEnabled = true,
+                    questEnabled = true,
+                    iosEnabled = false,
+                    androidEnabled = true,
+                    priorityBias = 5,
+                    maximumActiveCues = 1
                 }
             };
             show.EnsureStableIds();
@@ -502,6 +575,62 @@ namespace SpectraOverdrive.Editor
                             variationOptionCount = 2,
                             variationTimeBase = SpectraModulationTimeBase.Seconds,
                             variationCycleLength = 0.5f
+                        },
+                        new SpectraCueBlock
+                        {
+                            name = "Arbitration Low",
+                            startSeconds = 3f,
+                            durationSeconds = 1f,
+                            valueType = SpectraCueValueType.Intensity,
+                            intensity = 0.2f,
+                            priority = 10,
+                            blendMode = SpectraCueBlendMode.Replace,
+                            layerIndex = 1,
+                            arbitrationMode = SpectraCueArbitrationMode.HighestPriority,
+                            arbitrationGroup = 4
+                        },
+                        new SpectraCueBlock
+                        {
+                            name = "Arbitration High",
+                            startSeconds = 3f,
+                            durationSeconds = 1f,
+                            valueType = SpectraCueValueType.Intensity,
+                            intensity = 0.9f,
+                            priority = 20,
+                            blendMode = SpectraCueBlendMode.Replace,
+                            layerIndex = 1,
+                            arbitrationMode = SpectraCueArbitrationMode.HighestPriority,
+                            arbitrationGroup = 4
+                        },
+                        new SpectraCueBlock
+                        {
+                            name = "Cycle Arbitration A",
+                            startSeconds = 9f,
+                            durationSeconds = 1f,
+                            valueType = SpectraCueValueType.Intensity,
+                            intensity = 0.25f,
+                            priority = 30,
+                            blendMode = SpectraCueBlendMode.Replace,
+                            arbitrationMode = SpectraCueArbitrationMode.DeterministicCycle,
+                            arbitrationGroup = 5,
+                            arbitrationTimeBase = SpectraModulationTimeBase.Seconds,
+                            arbitrationCycleLength = 0.5f,
+                            arbitrationSeed = 2026
+                        },
+                        new SpectraCueBlock
+                        {
+                            name = "Cycle Arbitration B",
+                            startSeconds = 9f,
+                            durationSeconds = 1f,
+                            valueType = SpectraCueValueType.Intensity,
+                            intensity = 0.75f,
+                            priority = 30,
+                            blendMode = SpectraCueBlendMode.Replace,
+                            arbitrationMode = SpectraCueArbitrationMode.DeterministicCycle,
+                            arbitrationGroup = 5,
+                            arbitrationTimeBase = SpectraModulationTimeBase.Seconds,
+                            arbitrationCycleLength = 0.5f,
+                            arbitrationSeed = 2026
                         },
                         new SpectraCueBlock
                         {

@@ -1,5 +1,29 @@
 # Changelog
 
+## 1.5.0
+
+- Added schema-v8 synchronized cue layers with names, colors, default state,
+  per-platform availability, priority bias, and per-layer active-cue ceilings.
+- Added compact synchronized enabled and solo layer masks with late-join
+  reconstruction and show-change reset behavior.
+- Added `SpectraCueLayerController` and automatic production-rig wiring for
+  desktop and VR operator interfaces.
+- Added deterministic cue arbitration groups with Highest Priority, Latest
+  Start, Earliest Start, and seeded Deterministic Cycle policies.
+- Resolved layer filtering and arbitration before global active-cue admission so
+  rejected alternatives do not consume Quest, iOS, or Android cue capacity.
+- Added layer priority bias and per-layer admission caps to bounded runtime cue
+  selection.
+- Added starter cue layers, one-click layer/arbitration authoring, and timeline
+  `L#`/`ARB` badges.
+- Extended portable JSON, schema migration, compiled arrays, runtime baking,
+  content signatures, validators, platform reports, release reports, and
+  executable self-tests.
+- Expanded the Neon Drop demo with synchronized layer assignments and a
+  deterministic second-drop arbitration pair.
+- Preserved all schema-v7 generative routing, macro snapshots, and PCVR, Quest,
+  iOS, and Android behavior for shows that do not opt into the new systems.
+
 ## 1.4.0
 
 - Added schema-v7 deterministic cue conditions: Probability, Every Nth Cycle,

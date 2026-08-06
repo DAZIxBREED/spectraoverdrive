@@ -9,7 +9,7 @@ namespace SpectraOverdrive.Editor
     [Serializable]
     public sealed class SpectraReleaseReadinessReport
     {
-        public string generatorVersion = "1.4.0";
+        public string generatorVersion = "1.5.0";
         public string showName;
         public string showId;
         public string contentHash;
@@ -29,6 +29,10 @@ namespace SpectraOverdrive.Editor
         public int variationCueCount;
         public int variationGroupCount;
         public int performanceMacroSnapshotCount;
+        public int cueLayerCount;
+        public int cueLayerBindingCount;
+        public int arbitrationCueCount;
+        public int arbitrationGroupCount;
         public int sceneCount;
         public bool ready;
         public string[] errors = new string[0];
@@ -118,6 +122,10 @@ namespace SpectraOverdrive.Editor
                 variationGroupCount = CountVariationGroups(show),
                 performanceMacroSnapshotCount = show.performanceMacroSnapshots == null
                     ? 0 : show.performanceMacroSnapshots.Length,
+                cueLayerCount = show.cueLayers == null ? 0 : show.cueLayers.Length,
+                cueLayerBindingCount = CountCueLayerBindings(show),
+                arbitrationCueCount = CountArbitrationCues(show),
+                arbitrationGroupCount = CountArbitrationGroups(show),
                 sceneCount = CountScenes(show),
                 ready = errors.Count == 0,
                 errors = errors.ToArray(),
@@ -336,6 +344,62 @@ namespace SpectraOverdrive.Editor
             return count;
         }
 
+
+        private static int CountCueLayerBindings(SpectraShowAsset show)
+        {
+            int count = 0;
+            if (show.tracks == null) return count;
+            for (int trackIndex = 0; trackIndex < show.tracks.Length; trackIndex++)
+            {
+                SpectraTimelineTrack track = show.tracks[trackIndex];
+                if (track == null || track.cues == null) continue;
+                for (int cueIndex = 0; cueIndex < track.cues.Length; cueIndex++)
+                    if (track.cues[cueIndex] != null && track.cues[cueIndex].layerIndex >= 0)
+                        count++;
+            }
+            return count;
+        }
+
+        private static int CountArbitrationCues(SpectraShowAsset show)
+        {
+            int count = 0;
+            if (show.tracks == null) return count;
+            for (int trackIndex = 0; trackIndex < show.tracks.Length; trackIndex++)
+            {
+                SpectraTimelineTrack track = show.tracks[trackIndex];
+                if (track == null || track.cues == null) continue;
+                for (int cueIndex = 0; cueIndex < track.cues.Length; cueIndex++)
+                    if (track.cues[cueIndex] != null
+                        && track.cues[cueIndex].arbitrationMode != SpectraCueArbitrationMode.Disabled)
+                        count++;
+            }
+            return count;
+        }
+
+        private static int CountArbitrationGroups(SpectraShowAsset show)
+        {
+            bool[] groups = new bool[16];
+            int count = 0;
+            if (show.tracks == null) return count;
+            for (int trackIndex = 0; trackIndex < show.tracks.Length; trackIndex++)
+            {
+                SpectraTimelineTrack track = show.tracks[trackIndex];
+                if (track == null || track.cues == null) continue;
+                for (int cueIndex = 0; cueIndex < track.cues.Length; cueIndex++)
+                {
+                    SpectraCueBlock cue = track.cues[cueIndex];
+                    if (cue == null || cue.arbitrationMode == SpectraCueArbitrationMode.Disabled
+                        || cue.arbitrationGroup < 0 || cue.arbitrationGroup >= groups.Length) continue;
+                    if (!groups[cue.arbitrationGroup])
+                    {
+                        groups[cue.arbitrationGroup] = true;
+                        count++;
+                    }
+                }
+            }
+            return count;
+        }
+
         private static int CountScenes(SpectraShowAsset show)
         {
             int count = 0;
@@ -345,7 +409,7 @@ namespace SpectraOverdrive.Editor
             return count;
         }
 
-        [MenuItem("SpectraOverdrive/Show Programmer/Run 1.4 Release Readiness Check")]
+        [MenuItem("SpectraOverdrive/Show Programmer/Run 1.5 Release Readiness Check")]
         private static void ValidateSelected()
         {
             SpectraShowAsset show = Selection.activeObject as SpectraShowAsset;
@@ -360,12 +424,16 @@ namespace SpectraOverdrive.Editor
                 + "\nRhythm gates: " + report.rhythmGateCueCount
                 + "\nPalette bindings: " + report.paletteBindingCount
                 + "\nPalette colors: " + report.paletteColorCount
+                + "\nCue layers: " + report.cueLayerCount
+                + "\nLayer bindings: " + report.cueLayerBindingCount
+                + "\nArbitrated cues: " + report.arbitrationCueCount
+                + "\nArbitration groups: " + report.arbitrationGroupCount
                 + "\nSignature: " + report.contentHash
                 + "\nErrors: " + report.errors.Length
                 + "\nWarnings: " + report.warnings.Length;
-            Debug.Log("[SpectraOverdrive 1.4] " + summary + "\n"
+            Debug.Log("[SpectraOverdrive 1.5] " + summary + "\n"
                 + JsonUtility.ToJson(report, true), show);
-            if (EditorUtility.DisplayDialog("SpectraOverdrive 1.4 - " + summary,
+            if (EditorUtility.DisplayDialog("SpectraOverdrive 1.5 - " + summary,
                 summary + "\n\nWrite the full machine-readable report to disk?", "Write Report", "Close"))
             {
                 string path = EditorUtility.SaveFilePanel(
