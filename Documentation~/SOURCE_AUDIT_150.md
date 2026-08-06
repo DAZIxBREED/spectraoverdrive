@@ -38,8 +38,8 @@ release packaging and GitHub publication.
   found.
 - All package-local shader include paths resolve.
 - All JSON and assembly-definition files parse successfully.
-- The GitHub Actions workflow invokes the same repository audit on pull requests
-  and pushes to `main`.
+- `Tools/validate_package.py` contains the same reproducible repository audit
+  used for the 1.5.0 release verification.
 - `package.json` reports version `1.5.0` and Unity `2022.3`.
 - No source file from the 1.4.0 baseline was removed.
 
