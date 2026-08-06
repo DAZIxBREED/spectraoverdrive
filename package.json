@@ -1,0 +1,17 @@
+{
+  "name": "com.dazixbreed.spectraoverdrive",
+  "displayName": "SpectraOverdrive",
+  "version": "1.4.0",
+  "unity": "2022.3",
+  "description": "Advanced cross-platform VRChat show programmer with deterministic cue conditions, synchronized variation groups, performance macro snapshots, rhythm gates, dynamic palettes, procedural modulation, scene stacks, server-time synchronization, adaptive scaling, accessibility, and PCVR, Quest, iOS, and Android playback.",
+  "author": {
+    "name": "DAZIxBREED (DAZI Crossbreed)"
+  },
+  "dependencies": {
+    "com.unity.textmeshpro": "3.0.6"
+  },
+  "vpmDependencies": {
+    "com.vrchat.worlds": ">=3.10.0",
+    "com.vrchat.udonsharp": ">=1.1.9"
+  }
+}
