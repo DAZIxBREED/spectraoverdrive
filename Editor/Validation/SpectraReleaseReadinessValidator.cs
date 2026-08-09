@@ -9,7 +9,7 @@ namespace SpectraOverdrive.Editor
     [Serializable]
     public sealed class SpectraReleaseReadinessReport
     {
-        public string generatorVersion = "1.5.0";
+        public string generatorVersion = "1.5.1";
         public string showName;
         public string showId;
         public string contentHash;

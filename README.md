@@ -1,10 +1,23 @@
-# SpectraOverdrive 1.5.0
+# SpectraOverdrive 1.5.1
 
 SpectraOverdrive is a cross-platform Unity and VRChat stage-lighting authoring,
 playback, synchronization, and live-operation system written by DAZIxBREED.
 A single compiled show preserves timing, cue intent, safety, operator state, and
 deterministic routing across PCVR, Quest, iOS, and Android while each client
 uses its own bounded rendering policy.
+
+## What 1.5.1 fixes
+
+- Canonicalizes cue-layer enabled and solo masks so a disabled layer can never remain as the active solo target.
+- Soloing a disabled layer now enables and solos it atomically instead of suppressing every layered cue.
+- Disabling or toggling off a soloed layer clears its solo bit in the same synchronized transaction.
+- Late joiners keep compiled macro defaults and cue-layer defaults until the first authoritative revision is received, avoiding a brief all-layers/all-macros fallback state.
+- Runtime arbitration now rejects malformed candidates whose mode, clock, phase, cycle length, or seed disagrees with the prepared group configuration.
+- Adds `arbitrationConfigurationMismatchCount` diagnostics for corrupted or hand-edited baked players.
+- Expands the editor self-test with layer-lockout, pre-deserialization, and malformed-arbitration regression coverage.
+- Strengthens `Tools/validate_package.py` so package, README, portable-show, and release-report versions must agree.
+
+1.5.1 keeps **schema v8**. Shows authored in 1.5.0 do not require a data migration, but baked runtime players should be rebuilt so the runtime fixes and diagnostics are present.
 
 ## What 1.5 adds
 

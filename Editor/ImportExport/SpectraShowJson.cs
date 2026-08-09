@@ -9,7 +9,7 @@ namespace SpectraOverdrive.Editor
     internal class SpectraPortableShowData
     {
         public string format = "SpectraOverdrive.Show";
-        public string createdWith = "1.5.0";
+        public string createdWith = "1.5.1";
         public string contentHash;
         public int schemaVersion;
         public string showId;
@@ -38,7 +38,7 @@ namespace SpectraOverdrive.Editor
             return new SpectraPortableShowData
             {
                 format = "SpectraOverdrive.Show",
-                createdWith = "1.5.0",
+                createdWith = "1.5.1",
                 contentHash = string.Empty,
                 schemaVersion = show.schemaVersion,
                 showId = show.showId,
@@ -345,7 +345,7 @@ namespace SpectraOverdrive.Editor
         {
             data.schemaVersion = 8;
             data.format = "SpectraOverdrive.Show";
-            data.createdWith = "1.5.0";
+            data.createdWith = "1.5.1";
             data.cueLayers = new SpectraCueLayer[0];
             if (data.tracks == null) return;
             for (int trackIndex = 0; trackIndex < data.tracks.Length; trackIndex++)

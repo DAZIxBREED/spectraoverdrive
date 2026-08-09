@@ -227,7 +227,9 @@ namespace SpectraOverdrive.Editor
                 player.ApplyAtTime(3.5f);
                 AssertNear(0.9d, group.intensityMultiplier,
                     "runtime highest-priority arbitration selected one deterministic winner");
-                player.SetCueLayerMasks(1, 0);
+                player.SetCueLayerMasks(1, 2);
+                Assert(player.cueLayerEnabledMask == 1 && player.cueLayerSoloMask == 0,
+                    "runtime cue-layer mask canonicalization removed a solo bit from a disabled layer");
                 player.ApplyAtTime(3.5f);
                 AssertNear(1d, group.intensityMultiplier,
                     "runtime cue-layer mask rejected a layer before budget admission");
@@ -235,6 +237,24 @@ namespace SpectraOverdrive.Editor
                 player.ApplyAtTime(3.5f);
                 AssertNear(0.9d, group.intensityMultiplier,
                     "runtime cue-layer defaults restored the authored layer state");
+                int arbitrationFirst = -1;
+                int arbitrationSecond = -1;
+                for (int cueIndex = 0; cueIndex < player.CueCount; cueIndex++)
+                {
+                    if (player.cueArbitrationGroups[cueIndex] != 4) continue;
+                    if (arbitrationFirst < 0) arbitrationFirst = cueIndex;
+                    else { arbitrationSecond = cueIndex; break; }
+                }
+                Assert(arbitrationFirst >= 0 && arbitrationSecond >= 0,
+                    "self-test located the highest-priority arbitration pair");
+                int originalSecondMode = player.cueArbitrationModes[arbitrationSecond];
+                player.cueArbitrationModes[arbitrationSecond] =
+                    (int)SpectraCueArbitrationMode.LatestStart;
+                player.ApplyAtTime(3.5f);
+                Assert(player.arbitrationConfigurationMismatchCount == 1,
+                    "runtime rejected a malformed mixed-mode arbitration candidate deterministically");
+                player.cueArbitrationModes[arbitrationSecond] = originalSecondMode;
+
                 player.ApplyAtTime(9.1f);
                 float cycleFirst = group.intensityMultiplier;
                 player.ApplyAtTime(9.6f);
@@ -312,9 +332,36 @@ namespace SpectraOverdrive.Editor
                 network.playbackState = (int)SpectraShowPlaybackState.Paused;
                 network.pausedOffset = 1.25f;
                 network.synchronizedMasterIntensity = 0.4f;
+                player.SetPerformanceMacroValues(0.37f, 0.48f, 0.59f, 0.61f);
+                player.SetCueLayerMasks(1, 0);
+                network.performanceMacroRevision = 0;
+                network.cueLayerRevision = 0;
+                network.synchronizedCueLayerEnabledMask = 3;
+                network.synchronizedCueLayerSoloMask = 2;
+                network.ApplyAuthoritativeState();
+                AssertNear(0.37d, player.performanceMacro0,
+                    "pre-deserialization authoritative state preserved local compiled macro defaults");
+                Assert(player.cueLayerEnabledMask == 1 && player.cueLayerSoloMask == 0,
+                    "pre-deserialization authoritative state preserved local compiled layer defaults");
+                network.performanceMacroRevision = 1;
+                network.cueLayerRevision = 1;
                 network.ApplyAuthoritativeState();
                 AssertNear(1.25d, player.showTime, "offline authoritative network-state reconstruction");
                 AssertNear(0.4d, bus.masterIntensity, "synchronized operator master intensity");
+                network.synchronizedCueLayerEnabledMask = 1;
+                network.synchronizedCueLayerSoloMask = 0;
+                network.SetCueLayerEnabled(1, false);
+                Assert((network.synchronizedCueLayerEnabledMask & 2) == 0
+                    && (network.synchronizedCueLayerSoloMask & 2) == 0,
+                    "disabling a cue layer clears any stale solo bit");
+                network.SoloCueLayer(1);
+                Assert((network.synchronizedCueLayerEnabledMask & 2) != 0
+                    && network.synchronizedCueLayerSoloMask == 2,
+                    "soloing a disabled cue layer enables it atomically");
+                network.SetCueLayerEnabled(1, false);
+                Assert(network.synchronizedCueLayerSoloMask == 0,
+                    "disabling the currently soloed cue layer cannot leave the show solo-locked");
+                network.ResetCueLayers();
                 network.playbackState = (int)SpectraShowPlaybackState.Playing;
                 network.playStartedServerTime = 100d;
                 network.synchronizedPlaybackSpeed = 1f;
@@ -368,8 +415,8 @@ namespace SpectraOverdrive.Editor
                     && release.arbitrationGroupCount == 2,
                     "1.5 release-readiness pipeline");
 
-                Debug.Log("SpectraOverdrive 1.5.0 self-test PASSED: schema-v8 migration, synchronized cue layers, deterministic cue arbitration, cue conditions, variation groups, macro snapshot recall, beat grid, variable-tempo runtime map, flattened automation, deterministic rhythm gates, dynamic color palettes, procedural modulation, synchronized performance macros, ordered scene stacks, quantized hot cues, capability contracts, timeline, waveform analysis, assisted generation, signed JSON, compiler, optics, overrides, snapshots, network reconstruction, platform validation, loops, and blackout.");
-                EditorUtility.DisplayDialog("SpectraOverdrive", "All 1.5.0 Show Programmer self-tests passed.", "OK");
+                Debug.Log("SpectraOverdrive 1.5.1 self-test PASSED: schema-v8 migration, synchronized cue layers, deterministic cue arbitration, cue conditions, variation groups, macro snapshot recall, beat grid, variable-tempo runtime map, flattened automation, deterministic rhythm gates, dynamic color palettes, procedural modulation, synchronized performance macros, ordered scene stacks, quantized hot cues, capability contracts, timeline, waveform analysis, assisted generation, signed JSON, compiler, optics, overrides, snapshots, network reconstruction, platform validation, loops, and blackout.");
+                EditorUtility.DisplayDialog("SpectraOverdrive", "All 1.5.1 Show Programmer self-tests passed.", "OK");
             }
             finally
             {

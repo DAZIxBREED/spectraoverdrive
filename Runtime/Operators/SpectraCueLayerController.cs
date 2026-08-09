@@ -13,9 +13,20 @@ namespace SpectraOverdrive
         public bool selectedLayerEnabled;
         public bool selectedLayerSoloed;
         public int layerCount;
+        [Range(0.05f, 1f)] public float refreshInterval = 0.25f;
+
+        private float _nextRefreshTime;
 
         private void Start()
         {
+            RefreshSelection();
+            _nextRefreshTime = Time.time + Mathf.Max(0.05f, refreshInterval);
+        }
+
+        private void Update()
+        {
+            if (Time.time < _nextRefreshTime) return;
+            _nextRefreshTime = Time.time + Mathf.Max(0.05f, refreshInterval);
             RefreshSelection();
         }
 

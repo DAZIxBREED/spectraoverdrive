@@ -9,7 +9,7 @@ import sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
-EXPECTED_VERSION = "1.5.0"
+EXPECTED_VERSION = "1.5.1"
 
 
 def fail(message: str) -> None:
@@ -157,6 +157,15 @@ def main() -> None:
     package = json.loads((ROOT / "package.json").read_text(encoding="utf-8"))
     if package.get("version") != EXPECTED_VERSION:
         fail(f"package version is {package.get('version')}, expected {EXPECTED_VERSION}")
+    readme = (ROOT / "README.md").read_text(encoding="utf-8")
+    if not readme.startswith(f"# SpectraOverdrive {EXPECTED_VERSION}\n"):
+        fail("README release heading does not match package version")
+    show_json = (ROOT / "Editor/ImportExport/SpectraShowJson.cs").read_text(encoding="utf-8")
+    if f'createdWith = "{EXPECTED_VERSION}"' not in show_json:
+        fail("portable-show createdWith version does not match package version")
+    release_validator = (ROOT / "Editor/Validation/SpectraReleaseReadinessValidator.cs").read_text(encoding="utf-8")
+    if f'generatorVersion = "{EXPECTED_VERSION}"' not in release_validator:
+        fail("release-readiness generator version does not match package version")
 
     sources = sorted(ROOT.rglob("*.cs"))
     if not sources:

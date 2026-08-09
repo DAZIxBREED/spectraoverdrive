@@ -162,3 +162,11 @@
 Delivered in 1.5.0: synchronized layer masks, platform-aware layer policy,
 priority bias, per-layer admission limits, deterministic arbitration groups,
 a layer controller, timeline authoring, migration, validation, and demo content.
+
+
+### 1.5.1 maintenance release
+
+Delivered in 1.5.1: canonical cue-layer solo/enable state, late-join default
+preservation before authoritative revisions arrive, defensive arbitration
+configuration rejection, live cue-layer controller refresh, and expanded
+regression/static validation. Schema remains v8.

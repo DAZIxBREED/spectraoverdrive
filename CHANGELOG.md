@@ -1,5 +1,16 @@
 # Changelog
 
+## 1.5.1
+
+- Fixed cue-layer solo lockout states by enforcing `soloMask ⊆ enabledMask`.
+- Soloing a disabled layer now enables it atomically; disabling or toggling off a soloed layer clears its solo bit.
+- Prevented pre-deserialization network state from overriding compiled performance-macro and cue-layer defaults on late joiners.
+- Hardened arbitration against malformed mixed-configuration candidates and added a runtime mismatch diagnostic counter.
+- Added bounded cue-layer controller refresh so remote layer changes and show switches update operator UI state automatically.
+- Expanded runtime self-tests for layer-mask canonicalization, network late-join initialization, solo/disable transitions, and arbitration mismatch handling.
+- Strengthened the static package validator with cross-file release-version checks.
+- Kept schema v8 and full PCVR, Quest, iOS, and Android compatibility.
+
 ## 1.5.0
 
 - Added schema-v8 synchronized cue layers with names, colors, default state,

@@ -225,6 +225,7 @@ namespace SpectraOverdrive
         [Tooltip("When non-zero, only layers present in this mask are admitted.")]
         public int cueLayerSoloMask;
         public int arbitrationSuppressedCueCount;
+        public int arbitrationConfigurationMismatchCount;
         public int layerSuppressedCueCount;
 
         private float _playStartedAt;
@@ -462,7 +463,7 @@ namespace SpectraOverdrive
             int layerCount = GetCueLayerCount();
             int validMask = layerCount <= 0 ? 0 : (1 << layerCount) - 1;
             cueLayerEnabledMask = enabledMask & validMask;
-            cueLayerSoloMask = soloMask & validMask;
+            cueLayerSoloMask = soloMask & cueLayerEnabledMask & validMask;
         }
 
         public void ResetCueLayerMasksToDefaults()
@@ -1695,6 +1696,7 @@ namespace SpectraOverdrive
         {
             EnsureArbitrationScratchArrays();
             arbitrationSuppressedCueCount = 0;
+            arbitrationConfigurationMismatchCount = 0;
             layerSuppressedCueCount = 0;
             for (int group = 0; group < 16; group++)
             {
@@ -1730,10 +1732,17 @@ namespace SpectraOverdrive
                     _arbitrationPhases[group] = cueArbitrationPhases[cue];
                     _arbitrationWinners[group] = cue;
                 }
+                else if (!MatchesPreparedArbitrationConfiguration(cue, group))
+                {
+                    arbitrationConfigurationMismatchCount++;
+                    continue;
+                }
                 _arbitrationCandidateCounts[group]++;
-                if (mode != SpectraCueArbitrationMode.DeterministicCycle
+                SpectraCueArbitrationMode preparedMode =
+                    (SpectraCueArbitrationMode)_arbitrationModes[group];
+                if (preparedMode != SpectraCueArbitrationMode.DeterministicCycle
                     && IsBetterArbitrationCandidate(
-                        cue, _arbitrationWinners[group], mode))
+                        cue, _arbitrationWinners[group], preparedMode))
                     _arbitrationWinners[group] = cue;
             }
 
@@ -1758,6 +1767,7 @@ namespace SpectraOverdrive
                         if (cueArbitrationGroups[cue] != group
                             || (SpectraCueArbitrationMode)cueArbitrationModes[cue]
                                 == SpectraCueArbitrationMode.Disabled
+                            || !MatchesPreparedArbitrationConfiguration(cue, group)
                             || !IsCuePreArbitrationActive(cue, time)) continue;
                         if (ordinal == targetOrdinal)
                         {
@@ -1782,6 +1792,18 @@ namespace SpectraOverdrive
             _arbitrationSeeds = new int[16];
             _arbitrationCycleLengths = new float[16];
             _arbitrationPhases = new float[16];
+        }
+
+        private bool MatchesPreparedArbitrationConfiguration(int cue, int group)
+        {
+            if (cue < 0 || cue >= CueCount || group < 0 || group >= 16) return false;
+            return cueArbitrationModes[cue] == _arbitrationModes[group]
+                && cueArbitrationTimeBases[cue] == _arbitrationTimeBases[group]
+                && cueArbitrationSeeds[cue] == _arbitrationSeeds[group]
+                && Mathf.Abs(cueArbitrationCycleLengths[cue]
+                    - _arbitrationCycleLengths[group]) < 0.0001f
+                && Mathf.Abs(cueArbitrationPhases[cue]
+                    - _arbitrationPhases[group]) < 0.0001f;
         }
 
         private bool IsBetterArbitrationCandidate(

@@ -97,23 +97,36 @@ namespace SpectraOverdrive
                 revision++;
                 RequestSerialization();
             }
-            if (Networking.IsOwner(gameObject) && performanceMacroRevision == 0)
+            if (performanceMacroRevision == 0)
             {
-                InitializePerformanceMacros(
-                    ActivePlayer(),
-                    Networking.GetServerTimeInSeconds());
-                performanceMacroRevision++;
-                revision++;
-                RequestSerialization();
+                if (Networking.IsOwner(gameObject))
+                {
+                    InitializePerformanceMacros(
+                        ActivePlayer(),
+                        Networking.GetServerTimeInSeconds());
+                    performanceMacroRevision++;
+                    revision++;
+                    RequestSerialization();
+                }
+                else
+                {
+                    SpectraShowRuntimePlayer player = ActivePlayer();
+                    if (player != null) player.ResetPerformanceMacrosToDefaults();
+                }
             }
             if (cueLayerRevision == 0)
             {
-                InitializeCueLayers(ActivePlayer());
                 if (Networking.IsOwner(gameObject))
                 {
+                    InitializeCueLayers(ActivePlayer());
                     cueLayerRevision++;
                     revision++;
                     RequestSerialization();
+                }
+                else
+                {
+                    SpectraShowRuntimePlayer player = ActivePlayer();
+                    if (player != null) player.ResetCueLayerMasksToDefaults();
                 }
             }
             ApplyAuthoritativeState();
@@ -124,7 +137,7 @@ namespace SpectraOverdrive
             SpectraShowRuntimePlayer player = ActivePlayer();
             if (player == null) return;
             double now = Networking.GetServerTimeInSeconds();
-            ApplyPerformanceMacros(player, now);
+            if (performanceMacroRevision > 0) ApplyPerformanceMacros(player, now);
             SpectraShowPlaybackState resolvedState = (SpectraShowPlaybackState)playbackState;
             if (resolvedState == SpectraShowPlaybackState.Playing)
             {
@@ -523,7 +536,16 @@ namespace SpectraOverdrive
             SpectraShowRuntimePlayer player = ActivePlayer();
             if (player == null || !player.IsCueLayerUsable(layerIndex)) return;
             int bit = 1 << layerIndex;
-            synchronizedCueLayerEnabledMask ^= bit;
+            bool wasEnabled = (synchronizedCueLayerEnabledMask & bit) != 0;
+            if (wasEnabled)
+            {
+                synchronizedCueLayerEnabledMask &= ~bit;
+                synchronizedCueLayerSoloMask &= ~bit;
+            }
+            else
+            {
+                synchronizedCueLayerEnabledMask |= bit;
+            }
             cueLayerRevision++;
             revision++;
             CommitAndApply();
@@ -546,7 +568,11 @@ namespace SpectraOverdrive
             if (player == null || !player.IsCueLayerUsable(layerIndex)) return;
             int bit = 1 << layerIndex;
             if (enabled) synchronizedCueLayerEnabledMask |= bit;
-            else synchronizedCueLayerEnabledMask &= ~bit;
+            else
+            {
+                synchronizedCueLayerEnabledMask &= ~bit;
+                synchronizedCueLayerSoloMask &= ~bit;
+            }
             cueLayerRevision++;
             revision++;
             CommitAndApply();
@@ -563,8 +589,15 @@ namespace SpectraOverdrive
             SpectraShowRuntimePlayer player = ActivePlayer();
             if (player == null || !player.IsCueLayerUsable(layerIndex)) return;
             int bit = 1 << layerIndex;
-            synchronizedCueLayerSoloMask = synchronizedCueLayerSoloMask == bit
-                ? 0 : bit;
+            if (synchronizedCueLayerSoloMask == bit)
+            {
+                synchronizedCueLayerSoloMask = 0;
+            }
+            else
+            {
+                synchronizedCueLayerEnabledMask |= bit;
+                synchronizedCueLayerSoloMask = bit;
+            }
             cueLayerRevision++;
             revision++;
             CommitAndApply();
@@ -673,11 +706,12 @@ namespace SpectraOverdrive
             player.showStrobesEnabled = synchronizedStrobesEnabled;
             player.showLasersEnabled = synchronizedLasersEnabled;
             player.emergencyBlackout = emergencyBlackout;
-            player.SetCueLayerMasks(
-                synchronizedCueLayerEnabledMask,
-                synchronizedCueLayerSoloMask);
+            if (cueLayerRevision > 0)
+                player.SetCueLayerMasks(
+                    synchronizedCueLayerEnabledMask,
+                    synchronizedCueLayerSoloMask);
             double serverTime = Networking.GetServerTimeInSeconds();
-            ApplyPerformanceMacros(player, serverTime);
+            if (performanceMacroRevision > 0) ApplyPerformanceMacros(player, serverTime);
             if (player.bus != null)
                 player.bus.SetMasterIntensity(synchronizedMasterIntensity
                     * ResolveHotCueTransitionIntensity(serverTime));
