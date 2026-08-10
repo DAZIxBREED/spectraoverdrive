@@ -66,6 +66,8 @@ namespace SpectraOverdrive
         public int deserializationCount;
         public int rejectedStateCount;
         public int executedHotCueCount;
+        public int suppressedNoOpNetworkWriteCount;
+        public int invalidLoopSelectionCount;
         public double lastNetworkUpdateServerTime;
 
         private float _nextHeartbeat;
@@ -361,8 +363,17 @@ namespace SpectraOverdrive
 
         public void SetSynchronizedLoop(int loopIndex)
         {
+            SpectraShowRuntimePlayer player = ActivePlayer();
+            if (player == null) return;
+            int normalized = loopIndex >= 0 && player.IsLoopSelectionUsable(loopIndex)
+                ? loopIndex : -1;
+            if (activeLoopIndex == normalized)
+            {
+                suppressedNoOpNetworkWriteCount++;
+                return;
+            }
             if (!AcquireControl()) return;
-            activeLoopIndex = loopIndex;
+            activeLoopIndex = normalized;
             revision++;
             CommitAndApply();
         }
@@ -398,6 +409,11 @@ namespace SpectraOverdrive
 
         public void SetEmergencyBlackout(bool enabled)
         {
+            if (emergencyBlackout == enabled)
+            {
+                suppressedNoOpNetworkWriteCount++;
+                return;
+            }
             if (!AcquireControl()) return;
             emergencyBlackout = enabled;
             revision++;
@@ -416,6 +432,11 @@ namespace SpectraOverdrive
 
         public void SetSynchronizedStrobes(bool enabled)
         {
+            if (synchronizedStrobesEnabled == enabled)
+            {
+                suppressedNoOpNetworkWriteCount++;
+                return;
+            }
             if (!AcquireControl()) return;
             synchronizedStrobesEnabled = enabled;
             revision++;
@@ -434,6 +455,11 @@ namespace SpectraOverdrive
 
         public void SetSynchronizedLasers(bool enabled)
         {
+            if (synchronizedLasersEnabled == enabled)
+            {
+                suppressedNoOpNetworkWriteCount++;
+                return;
+            }
             if (!AcquireControl()) return;
             synchronizedLasersEnabled = enabled;
             revision++;
@@ -442,8 +468,14 @@ namespace SpectraOverdrive
 
         public void SetSynchronizedMasterIntensity(float value)
         {
+            float normalized = Mathf.Clamp(value, 0f, 2f);
+            if (Mathf.Abs(synchronizedMasterIntensity - normalized) <= 0.0001f)
+            {
+                suppressedNoOpNetworkWriteCount++;
+                return;
+            }
             if (!AcquireControl()) return;
-            synchronizedMasterIntensity = Mathf.Clamp(value, 0f, 2f);
+            synchronizedMasterIntensity = normalized;
             revision++;
             CommitAndApply();
         }
@@ -563,16 +595,26 @@ namespace SpectraOverdrive
 
         public void SetCueLayerEnabled(int layerIndex, bool enabled)
         {
-            if (!AcquireControl()) return;
             SpectraShowRuntimePlayer player = ActivePlayer();
             if (player == null || !player.IsCueLayerUsable(layerIndex)) return;
             int bit = 1 << layerIndex;
-            if (enabled) synchronizedCueLayerEnabledMask |= bit;
+            int nextEnabled = synchronizedCueLayerEnabledMask;
+            int nextSolo = synchronizedCueLayerSoloMask;
+            if (enabled) nextEnabled |= bit;
             else
             {
-                synchronizedCueLayerEnabledMask &= ~bit;
-                synchronizedCueLayerSoloMask &= ~bit;
+                nextEnabled &= ~bit;
+                nextSolo &= ~bit;
             }
+            if (nextEnabled == synchronizedCueLayerEnabledMask
+                && nextSolo == synchronizedCueLayerSoloMask)
+            {
+                suppressedNoOpNetworkWriteCount++;
+                return;
+            }
+            if (!AcquireControl()) return;
+            synchronizedCueLayerEnabledMask = nextEnabled;
+            synchronizedCueLayerSoloMask = nextSolo;
             cueLayerRevision++;
             revision++;
             CommitAndApply();
@@ -605,6 +647,11 @@ namespace SpectraOverdrive
 
         public void ClearCueLayerSolo()
         {
+            if (synchronizedCueLayerSoloMask == 0)
+            {
+                suppressedNoOpNetworkWriteCount++;
+                return;
+            }
             if (!AcquireControl()) return;
             synchronizedCueLayerSoloMask = 0;
             cueLayerRevision++;
@@ -614,8 +661,18 @@ namespace SpectraOverdrive
 
         public void ResetCueLayers()
         {
+            SpectraShowRuntimePlayer player = ActivePlayer();
+            if (player == null) return;
+            int defaults = player.GetDefaultCueLayerEnabledMask();
+            if (synchronizedCueLayerEnabledMask == defaults
+                && synchronizedCueLayerSoloMask == 0)
+            {
+                player.ResetCueLayerMasksToDefaults();
+                suppressedNoOpNetworkWriteCount++;
+                return;
+            }
             if (!AcquireControl()) return;
-            InitializeCueLayers(ActivePlayer());
+            InitializeCueLayers(player);
             cueLayerRevision++;
             revision++;
             CommitAndApply();
@@ -702,7 +759,9 @@ namespace SpectraOverdrive
                 overrideLayer.player = player;
                 if (overrideLayer.recorder != null) overrideLayer.recorder.player = player;
             }
-            player.selectedLoopIndex = activeLoopIndex;
+            player.SetLoop(activeLoopIndex);
+            if (activeLoopIndex >= 0 && player.selectedLoopIndex != activeLoopIndex)
+                invalidLoopSelectionCount++;
             player.showStrobesEnabled = synchronizedStrobesEnabled;
             player.showLasersEnabled = synchronizedLasersEnabled;
             player.emergencyBlackout = emergencyBlackout;

@@ -170,3 +170,8 @@ Delivered in 1.5.1: canonical cue-layer solo/enable state, late-join default
 preservation before authoritative revisions arrive, defensive arbitration
 configuration rejection, live cue-layer controller refresh, and expanded
 regression/static validation. Schema remains v8.
+
+
+### 1.5.2 maintenance release
+
+Delivered in 1.5.2: synchronized-loop validation, authoritative loop-state sanitation, redundant network-write suppression, and operator diagnostics without a schema change.

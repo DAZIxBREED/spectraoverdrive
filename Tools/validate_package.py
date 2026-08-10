@@ -9,7 +9,7 @@ import sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
-EXPECTED_VERSION = "1.5.1"
+EXPECTED_VERSION = "1.5.2"
 
 
 def fail(message: str) -> None:

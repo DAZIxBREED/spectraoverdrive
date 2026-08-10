@@ -333,6 +333,11 @@ namespace SpectraOverdrive
 
         public void SetEmergencyBlackout(bool enabled) { emergencyBlackout = enabled; ApplyAtTime(showTime); }
 
+        public bool IsLoopSelectionUsable(int loopIndex)
+        {
+            return IsLoopUsable(loopIndex);
+        }
+
         public void SetLoop(int loopIndex)
         {
             selectedLoopIndex = IsLoopUsable(loopIndex) ? loopIndex : -1;
@@ -466,18 +471,18 @@ namespace SpectraOverdrive
             cueLayerSoloMask = soloMask & cueLayerEnabledMask & validMask;
         }
 
-        public void ResetCueLayerMasksToDefaults()
+        public int GetDefaultCueLayerEnabledMask()
         {
-            if (!HasConsistentCueLayerArrays())
-            {
-                cueLayerEnabledMask = -1;
-                cueLayerSoloMask = 0;
-                return;
-            }
+            if (!HasConsistentCueLayerArrays()) return -1;
             int mask = 0;
             for (int i = 0; i < cueLayerDefaultEnabled.Length; i++)
                 if (cueLayerDefaultEnabled[i]) mask |= 1 << i;
-            cueLayerEnabledMask = mask;
+            return mask;
+        }
+
+        public void ResetCueLayerMasksToDefaults()
+        {
+            cueLayerEnabledMask = GetDefaultCueLayerEnabledMask();
             cueLayerSoloMask = 0;
         }
 

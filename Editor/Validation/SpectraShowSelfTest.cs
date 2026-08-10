@@ -362,6 +362,31 @@ namespace SpectraOverdrive.Editor
                 Assert(network.synchronizedCueLayerSoloMask == 0,
                     "disabling the currently soloed cue layer cannot leave the show solo-locked");
                 network.ResetCueLayers();
+                int noOpWritesBefore = network.suppressedNoOpNetworkWriteCount;
+                network.ResetCueLayers();
+                Assert(network.suppressedNoOpNetworkWriteCount == noOpWritesBefore + 1,
+                    "resetting already-default cue layers suppresses redundant serialization");
+                network.SetSynchronizedLoop(0);
+                Assert(network.activeLoopIndex == 0 && player.selectedLoopIndex == 0,
+                    "network accepts a valid synchronized loop selection");
+                noOpWritesBefore = network.suppressedNoOpNetworkWriteCount;
+                network.SetSynchronizedLoop(0);
+                Assert(network.suppressedNoOpNetworkWriteCount == noOpWritesBefore + 1,
+                    "re-selecting the active loop suppresses redundant serialization");
+                network.SetSynchronizedLoop(99);
+                Assert(network.activeLoopIndex == -1 && player.selectedLoopIndex == -1,
+                    "invalid synchronized loop selection normalizes to no loop");
+                network.activeLoopIndex = 99;
+                int invalidLoopsBefore = network.invalidLoopSelectionCount;
+                network.ApplyAuthoritativeState();
+                Assert(player.selectedLoopIndex == -1
+                    && network.invalidLoopSelectionCount == invalidLoopsBefore + 1,
+                    "deserialized invalid loop selection is rejected locally");
+                network.activeLoopIndex = -1;
+                noOpWritesBefore = network.suppressedNoOpNetworkWriteCount;
+                network.SetSynchronizedMasterIntensity(network.synchronizedMasterIntensity);
+                Assert(network.suppressedNoOpNetworkWriteCount == noOpWritesBefore + 1,
+                    "unchanged master intensity suppresses redundant serialization");
                 network.playbackState = (int)SpectraShowPlaybackState.Playing;
                 network.playStartedServerTime = 100d;
                 network.synchronizedPlaybackSpeed = 1f;
@@ -415,8 +440,8 @@ namespace SpectraOverdrive.Editor
                     && release.arbitrationGroupCount == 2,
                     "1.5 release-readiness pipeline");
 
-                Debug.Log("SpectraOverdrive 1.5.1 self-test PASSED: schema-v8 migration, synchronized cue layers, deterministic cue arbitration, cue conditions, variation groups, macro snapshot recall, beat grid, variable-tempo runtime map, flattened automation, deterministic rhythm gates, dynamic color palettes, procedural modulation, synchronized performance macros, ordered scene stacks, quantized hot cues, capability contracts, timeline, waveform analysis, assisted generation, signed JSON, compiler, optics, overrides, snapshots, network reconstruction, platform validation, loops, and blackout.");
-                EditorUtility.DisplayDialog("SpectraOverdrive", "All 1.5.1 Show Programmer self-tests passed.", "OK");
+                Debug.Log("SpectraOverdrive 1.5.2 self-test PASSED: schema-v8 migration, synchronized cue layers, deterministic cue arbitration, cue conditions, variation groups, macro snapshot recall, beat grid, variable-tempo runtime map, flattened automation, deterministic rhythm gates, dynamic color palettes, procedural modulation, synchronized performance macros, ordered scene stacks, quantized hot cues, capability contracts, timeline, waveform analysis, assisted generation, signed JSON, compiler, optics, overrides, snapshots, network reconstruction, platform validation, loops, and blackout.");
+                EditorUtility.DisplayDialog("SpectraOverdrive", "All 1.5.2 Show Programmer self-tests passed.", "OK");
             }
             finally
             {

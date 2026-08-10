@@ -1,7 +1,7 @@
 {
   "name": "com.dazixbreed.spectraoverdrive",
   "displayName": "SpectraOverdrive",
-  "version": "1.5.1",
+  "version": "1.5.2",
   "unity": "2022.3",
   "description": "Advanced cross-platform VRChat show programmer with synchronized cue layers, deterministic arbitration, hardened late-join state, canonical solo/enable masks, macro snapshots, rhythm gates, dynamic palettes, procedural modulation, scene stacks, server-time synchronization, adaptive scaling, accessibility, and PCVR, Quest, iOS, and Android playback.",
   "author": {

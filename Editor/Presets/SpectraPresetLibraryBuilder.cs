@@ -68,7 +68,7 @@ namespace SpectraOverdrive.Editor
         {
             SpectraCueTemplateAsset asset = LoadOrCreate<SpectraCueTemplateAsset>(Cues + "/" + FileName(name) + ".asset");
             asset.templateName = name;
-            asset.description = "Built-in SpectraOverdrive 1.5.1 cue template.";
+            asset.description = "Built-in SpectraOverdrive 1.5.2 cue template.";
             asset.cue = new SpectraCueBlock
             {
                 name = name,

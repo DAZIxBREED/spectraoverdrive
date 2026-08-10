@@ -1,5 +1,15 @@
 # Changelog
 
+## 1.5.2
+
+- Hardened synchronized loop selection so invalid indices normalize to no loop before network serialization.
+- Applied authoritative loop state through the runtime loop validator instead of assigning raw synchronized indices.
+- Added local diagnostics for rejected loop selections and suppressed no-op network writes.
+- Suppressed redundant serialization for unchanged loop, blackout, strobe, laser, master-intensity, cue-layer enable, cue-layer solo-clear, and cue-layer reset state.
+- Added canonical cue-layer default-mask lookup for deterministic reset comparisons.
+- Expanded the executable self-test with valid, redundant, malformed, and deserialized loop-selection cases plus no-op serialization regression checks.
+- Kept schema v8 and preserved PCVR, Quest, iOS, and Android show compatibility.
+
 ## 1.5.1
 
 - Fixed cue-layer solo lockout states by enforcing `soloMask ⊆ enabledMask`.
